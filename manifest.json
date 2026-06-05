@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-genwiki",
+  "name": "GenWiki",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Incremental personal knowledge base using LLMs for Obsidian",
+  "author": "yvonshong",
+  "authorUrl": "https://github.com/yvonshong/genwiki",
+  "isDesktopOnly": false
+}

@@ -1,0 +1,91 @@
+/* GenWiki Custom CSS Styles */
+.genwiki-chat-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    padding: 10px;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.genwiki-chat-history {
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding-right: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.genwiki-chat-message {
+    padding: 10px 14px;
+    border-radius: 8px;
+    max-width: 90%;
+    word-break: break-word;
+    line-height: 1.4;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.genwiki-chat-message-user {
+    background-color: var(--interactive-accent, #7852ee);
+    color: var(--text-on-accent, #ffffff) !important;
+    align-self: flex-end;
+    margin-left: auto;
+}
+
+.genwiki-chat-message-assistant {
+    background-color: var(--background-secondary);
+    color: var(--text-normal);
+    align-self: flex-start;
+    margin-right: auto;
+    border: 1px solid var(--border-color);
+}
+
+.genwiki-chat-input-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.genwiki-chat-input {
+    flex-grow: 1;
+    resize: none;
+    height: 50px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+}
+
+.genwiki-save-btn {
+    margin-top: 10px;
+    font-size: 0.85em;
+    padding: 6px 12px;
+    border-radius: 4px;
+}
+
+
+
+/* Header Row with Top Ingest Button */
+.genwiki-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+.genwiki-header-row h3 {
+    margin: 0;
+    font-size: 1.1em;
+}
+.genwiki-top-ingest-btn {
+    font-size: 0.8em;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
