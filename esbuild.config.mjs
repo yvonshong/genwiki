@@ -1,6 +1,18 @@
 import esbuild from "esbuild";
 import process from "process";
-import builtins from "builtin-modules";
+
+let builtins = [];
+try {
+	// try dynamic import to avoid hard dependency in CI if package isn't installed
+	// `builtin-modules` exports a default array of builtin Node modules
+	// using import() so missing package won't throw at module load time
+	// when not present in the environment.
+	// eslint-disable-next-line node/no-unsupported-features/es-syntax
+	const mod = await import("builtin-modules");
+	builtins = mod.default || [];
+} catch (e) {
+	builtins = [];
+}
 
 const banner =
 `/*

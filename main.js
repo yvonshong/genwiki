@@ -848,10 +848,10 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
         await this.app.vault.create(normalized, t.content);
       }
     }
-    const agentsPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/_agents/agents.md`);
-    const file = this.app.vault.getAbstractFileByPath(Path);
+    const claudePath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/_agents/CLAUDE.md`);
+    const file = this.app.vault.getAbstractFileByPath(claudePath);
     if (!file) {
-      await this.app.vault.create(agentsPath, `# agents.md
+      await this.app.vault.create(claudePath, `# CLAUDE.md
 
 \u672C\u534F\u8BAE\u7EA6\u675F GenWiki \u5904\u7406\u77E5\u8BC6\u7684\u89C4\u8303\u3002`);
     }
