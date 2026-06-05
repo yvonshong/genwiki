@@ -521,7 +521,7 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
         e.preventDefault();
         const href = target.getAttribute("href");
         if (href) {
-          this.plugin.app.workspace.openLinkText(href, "", true);
+          void this.plugin.app.workspace.openLinkText(href, "", true);
         }
       }
     });
@@ -563,17 +563,12 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
       const answer = await this.plugin.executeQuery(query);
       assistantMsgDiv.empty();
       const renderDiv = assistantMsgDiv.createDiv();
-      await import_obsidian2.MarkdownRenderer.renderMarkdown(answer, renderDiv, "", this);
+      await import_obsidian2.MarkdownRenderer.render(this.app, answer, renderDiv, "", this);
       const actionsDiv = assistantMsgDiv.createDiv({ cls: "genwiki-msg-actions" });
-      actionsDiv.style.display = "flex";
-      actionsDiv.style.gap = "8px";
-      actionsDiv.style.marginTop = "8px";
       const copyBtn = actionsDiv.createEl("button", {
         cls: "genwiki-copy-btn",
         text: "\u{1F4CB} \u590D\u5236"
       });
-      copyBtn.style.fontSize = "0.8em";
-      copyBtn.style.padding = "4px 8px";
       copyBtn.addEventListener("click", () => {
         navigator.clipboard.writeText(answer);
         new import_obsidian2.Notice("\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F\uFF01");
@@ -584,9 +579,6 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
           cls: "genwiki-save-btn mod-cta",
           text: "\u{1F4BE} \u4FDD\u5B58\u4E3A Wiki \u9875\u9762"
         });
-        saveBtn.style.margin = "0";
-        saveBtn.style.fontSize = "0.8em";
-        saveBtn.style.padding = "4px 8px";
         saveBtn.addEventListener("click", async () => {
           saveBtn.disabled = true;
           saveBtn.setText("\u6B63\u5728\u63D0\u70BC\u5F52\u7EB3...");
@@ -698,7 +690,9 @@ ${result.content}`;
     new import_obsidian2.Notice(`\u{1F389} \u77E5\u8BC6\u70B9 [[${result.title}]] \u5DF2\u6210\u529F\u5F55\u5165 Wiki\uFF01`);
     const newFile = this.plugin.app.vault.getAbstractFileByPath(destPath);
     if (newFile instanceof import_obsidian2.TFile) {
-      this.plugin.app.workspace.getLeaf().openFile(newFile);
+      const leaf = this.plugin.app.workspace.getLeaf(false);
+      if (leaf)
+        await leaf.openFile(newFile);
     }
   }
 };
@@ -1215,7 +1209,9 @@ ${content}
     }
     await this.logAction("lint", "Lint\u5065\u5EB7\u5BA1\u8BA1\u62A5\u544A");
     new import_obsidian3.Notice("\u{1F389} \u77E5\u8BC6\u5065\u5EB7\u4F53\u68C0\u5B8C\u6210\uFF01\u62A5\u544A\u5DF2\u751F\u6210\u3002");
-    this.app.workspace.getLeaf().openFile(this.app.vault.getAbstractFileByPath(reportPath));
+    const leaf = this.app.workspace.getLeaf(false);
+    if (leaf)
+      await leaf.openFile(this.app.vault.getAbstractFileByPath(reportPath));
   }
 };
 var QueryModal = class extends import_obsidian3.Modal {
@@ -1299,7 +1295,7 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "GenWiki Settings (\u5927\u6A21\u578B\u8BBE\u7F6E)" });
+    new import_obsidian3.Setting(containerEl).setName("GenWiki Settings (\u5927\u6A21\u578B\u8BBE\u7F6E)").setHeading();
     new import_obsidian3.Setting(containerEl).setName("\u9ED8\u8BA4\u5927\u6A21\u578B\u4F9B\u5E94\u5546 (Provider)").setDesc("\u9009\u62E9\u4F7F\u7528\u7684\u6A21\u578B\u901A\u9053").addDropdown((dropdown) => dropdown.addOption("gemini", "Google Gemini").addOption("anthropic", "Anthropic Claude").addOption("openai", "OpenAI").addOption("deepseek", "DeepSeek").addOption("kimi", "Moonshot Kimi").addOption("openrouter", "OpenRouter").setValue(this.plugin.settings.provider).onChange(async (value) => {
       this.plugin.settings.provider = value;
       await this.plugin.saveSettings();
@@ -1455,7 +1451,7 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         }
       );
     }
-    containerEl.createEl("h2", { text: "\u76EE\u5F55\u8DEF\u5F84\u914D\u7F6E (Paths)" });
+    new import_obsidian3.Setting(containerEl).setName("\u76EE\u5F55\u8DEF\u5F84\u914D\u7F6E (Paths)").setHeading();
     new import_obsidian3.Setting(containerEl).setName("Clippings \u76EE\u5F55").setDesc("\u7F51\u9875\u526A\u85CF\u5B58\u653E\u8DEF\u5F84").addText((text) => text.setValue(this.plugin.settings.clippingsDir).onChange(async (value) => {
       this.plugin.settings.clippingsDir = value;
       await this.plugin.saveSettings();

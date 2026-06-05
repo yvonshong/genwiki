@@ -1,5 +1,5 @@
-import { App, Plugin, PluginSettingTab, Setting, Modal, Notice, TFile, TFolder, normalizePath, WorkspaceLeaf, addIcon } from "obsidian";
-import { GenWikiSettings, DEFAULT_SETTINGS, DatabaseIndex, WikiPageMetadata, ClippingMetadata } from "./types";
+import { App, Plugin, PluginSettingTab, Setting, Modal, Notice, TFile, TFolder, normalizePath, WorkspaceLeaf } from "obsidian";
+import { GenWikiSettings, DEFAULT_SETTINGS, DatabaseIndex, WikiPageMetadata } from "./types";
 import { LLMClient } from "./llm";
 import { parseSkillMarkdown, fillTemplate, DEFAULT_INGEST_SKILL, DEFAULT_QUERY_SKILL, DEFAULT_LINT_SKILL, DEFAULT_SAVEPAGE_SKILL } from "./skills";
 import { GenWikiChatView, VIEW_TYPE_CHAT } from "./chat_view";
@@ -583,7 +583,8 @@ export default class GenWikiPlugin extends Plugin {
 		// Log and Open report
 		await this.logAction("lint", "Lint健康审计报告");
 		new Notice("🎉 知识健康体检完成！报告已生成。");
-		this.app.workspace.getLeaf().openFile(this.app.vault.getAbstractFileByPath(reportPath) as TFile);
+		const leaf = this.app.workspace.getLeaf(false);
+		if (leaf) await leaf.openFile(this.app.vault.getAbstractFileByPath(reportPath) as TFile);
 	}
 }
 
@@ -701,7 +702,7 @@ class GenWikiSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl("h2", { text: "GenWiki Settings (大模型设置)" });
+		new Setting(containerEl).setName("GenWiki Settings (大模型设置)").setHeading();
 
 		new Setting(containerEl)
 			.setName("默认大模型供应商 (Provider)")
@@ -914,7 +915,7 @@ class GenWikiSettingTab extends PluginSettingTab {
 			);
 		}
 
-		containerEl.createEl("h2", { text: "目录路径配置 (Paths)" });
+		new Setting(containerEl).setName("目录路径配置 (Paths)").setHeading();
 
 		new Setting(containerEl)
 			.setName("Clippings 目录")

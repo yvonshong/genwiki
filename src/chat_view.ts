@@ -69,7 +69,7 @@ export class GenWikiChatView extends ItemView {
 				const href = target.getAttribute("href");
 				if (href) {
 					// Open the clicked wikilink note in Obsidian workspace
-					this.plugin.app.workspace.openLinkText(href, "", true);
+					void this.plugin.app.workspace.openLinkText(href, "", true);
 				}
 			}
 		});
@@ -129,21 +129,16 @@ export class GenWikiChatView extends ItemView {
 			
 			// Render markdown formatted response
 			const renderDiv = assistantMsgDiv.createDiv();
-			await MarkdownRenderer.renderMarkdown(answer, renderDiv, "", this);
+			await MarkdownRenderer.render(this.app, answer, renderDiv, "", this);
 
 			// Create actions container
 			const actionsDiv = assistantMsgDiv.createDiv({ cls: "genwiki-msg-actions" });
-			actionsDiv.style.display = "flex";
-			actionsDiv.style.gap = "8px";
-			actionsDiv.style.marginTop = "8px";
 
 			// Copy button
 			const copyBtn = actionsDiv.createEl("button", {
 				cls: "genwiki-copy-btn",
 				text: "📋 复制"
 			});
-			copyBtn.style.fontSize = "0.8em";
-			copyBtn.style.padding = "4px 8px";
 			copyBtn.addEventListener("click", () => {
 				navigator.clipboard.writeText(answer);
 				new Notice("已复制到剪贴板！");
@@ -156,9 +151,6 @@ export class GenWikiChatView extends ItemView {
 					cls: "genwiki-save-btn mod-cta",
 					text: "💾 保存为 Wiki 页面"
 				});
-				saveBtn.style.margin = "0";
-				saveBtn.style.fontSize = "0.8em";
-				saveBtn.style.padding = "4px 8px";
 
 				saveBtn.addEventListener("click", async () => {
 					saveBtn.disabled = true;
@@ -299,7 +291,8 @@ ${result.content}`;
 		// Open the newly created page
 		const newFile = this.plugin.app.vault.getAbstractFileByPath(destPath);
 		if (newFile instanceof TFile) {
-			this.plugin.app.workspace.getLeaf().openFile(newFile);
+			const leaf = this.plugin.app.workspace.getLeaf(false);
+		if (leaf) await leaf.openFile(newFile);
 		}
 	}
 }

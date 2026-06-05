@@ -5,8 +5,8 @@
     height: 100%;
     overflow: hidden;
     padding: 10px;
-    user-select: text !important;
-    -webkit-user-select: text !important;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .genwiki-chat-history {
@@ -17,8 +17,8 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    user-select: text !important;
-    -webkit-user-select: text !important;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .genwiki-chat-message {
@@ -27,13 +27,13 @@
     max-width: 90%;
     word-break: break-word;
     line-height: 1.4;
-    user-select: text !important;
-    -webkit-user-select: text !important;
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .genwiki-chat-message-user {
-    background-color: var(--interactive-accent, #7852ee);
-    color: var(--text-on-accent, #ffffff) !important;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
     align-self: flex-end;
     margin-left: auto;
 }
@@ -43,7 +43,7 @@
     color: var(--text-normal);
     align-self: flex-start;
     margin-right: auto;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--background-modifier-border);
 }
 
 .genwiki-chat-input-container {
@@ -57,18 +57,11 @@
     resize: none;
     height: 50px;
     border-radius: 6px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--background-modifier-border);
     padding: 6px 10px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
 }
-
-.genwiki-save-btn {
-    margin-top: 10px;
-    font-size: 0.85em;
-    padding: 6px 12px;
-    border-radius: 4px;
-}
-
-
 
 /* Header Row with Top Ingest Button */
 .genwiki-header-row {
@@ -77,15 +70,32 @@
     align-items: center;
     margin-bottom: 15px;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--background-modifier-border);
 }
+
 .genwiki-header-row h3 {
     margin: 0;
     font-size: 1.1em;
+    color: var(--text-normal);
 }
+
 .genwiki-top-ingest-btn {
     font-size: 0.8em;
     padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+/* Message action buttons row (copy, save) */
+.genwiki-msg-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.genwiki-copy-btn,
+.genwiki-save-btn {
+    font-size: 0.8em;
+    padding: 4px 8px;
+    margin: 0;
 }
