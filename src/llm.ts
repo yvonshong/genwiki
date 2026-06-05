@@ -4,6 +4,22 @@ import { GenWikiSettings } from "./types";
 export class LLMClient {
 	private settings: GenWikiSettings;
 
+	private extractString(obj: unknown, path: Array<string | number>): string | undefined {
+		let cur: unknown = obj;
+		for (const key of path) {
+			if (cur === null || cur === undefined) return undefined;
+			if (typeof key === "number") {
+				if (Array.isArray(cur)) cur = cur[key]; else return undefined;
+			} else {
+				if (typeof cur === "object") {
+					const asObj = cur as Record<string, unknown>;
+					cur = asObj[key];
+				} else return undefined;
+			}
+		}
+		return typeof cur === "string" ? cur : undefined;
+	}
+
 	constructor(settings: GenWikiSettings) {
 		this.settings = settings;
 	}
@@ -52,12 +68,12 @@ export class LLMClient {
 
 		const url = `${baseUrl.replace(/\/+$/, "")}/v1beta/models/${model}:generateContent?key=${key}`;
 		
-		const body: any = {
+		const body: Record<string, unknown> = {
 			contents: [{ parts: [{ text: prompt }] }]
 		};
 
 		if (systemPrompt) {
-			body.systemInstruction = {
+			(body as Record<string, unknown>).systemInstruction = {
 				parts: [{ text: systemPrompt }]
 			};
 		}
@@ -76,8 +92,8 @@ export class LLMClient {
 			throw new Error(`Gemini API Error (${response.status}): ${response.text}`);
 		}
 
-		const json = response.json;
-		const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+		const json = response.json as unknown;
+		const text = this.extractString(json, ["candidates", 0, "content", "parts", 0, "text"]);
 		if (!text) {
 			throw new Error("Empty response received from Gemini API.");
 		}
@@ -91,14 +107,14 @@ export class LLMClient {
 
 		const baseUrl = this.settings.anthropicBaseUrl || "https://api.anthropic.com";
 		const url = this.cleanUrl(baseUrl, "v1/messages");
-		const body: any = {
+		const body: Record<string, unknown> = {
 			model: model,
 			max_tokens: 4096,
 			messages: [{ role: "user", content: prompt }]
 		};
 
 		if (systemPrompt) {
-			body.system = systemPrompt;
+			(body as Record<string, unknown>).system = systemPrompt;
 		}
 
 		const params: RequestUrlParam = {
@@ -117,8 +133,8 @@ export class LLMClient {
 			throw new Error(`Anthropic API Error (${response.status}): ${response.text}`);
 		}
 
-		const json = response.json;
-		const text = json.content?.[0]?.text;
+		const json = response.json as unknown;
+		const text = this.extractString(json, ["content", 0, "text"]);
 		if (!text) {
 			throw new Error("Empty response received from Anthropic API.");
 		}
@@ -150,13 +166,13 @@ export class LLMClient {
 		// DeepSeek Anthropic-compatible mode support
 		if (baseUrl.trim().replace(/\/+$/, "").endsWith("/anthropic")) {
 			const url = this.cleanUrl(baseUrl, "v1/messages");
-			const body: any = {
+			const body: Record<string, unknown> = {
 				model: model,
 				max_tokens: 4096,
 				messages: [{ role: "user", content: prompt }]
 			};
 			if (systemPrompt) {
-				body.system = systemPrompt;
+				(body as Record<string, unknown>).system = systemPrompt;
 			}
 			const params: RequestUrlParam = {
 				url: url,
@@ -171,8 +187,8 @@ export class LLMClient {
 			if (response.status !== 200) {
 				throw new Error(`DeepSeek Anthropic-compatible Error (${response.status}): ${response.text}`);
 			}
-			const json = response.json;
-			const text = json.content?.[0]?.text;
+			const json = response.json as unknown;
+			const text = this.extractString(json, ["content", 0, "text"]);
 			if (!text) {
 				throw new Error("Empty response received from DeepSeek Anthropic-compatible API.");
 			}
@@ -225,7 +241,7 @@ export class LLMClient {
 		prompt: string,
 		systemPrompt?: string
 	): Promise<string> {
-		const messages: any[] = [];
+		const messages: { role: string; content: string }[] = [];
 		if (systemPrompt) {
 			messages.push({ role: "system", content: systemPrompt });
 		}
@@ -249,8 +265,8 @@ export class LLMClient {
 			throw new Error(`API Error (${response.status}): ${response.text}`);
 		}
 
-		const json = response.json;
-		const text = json.choices?.[0]?.message?.content;
+		const json = response.json as unknown;
+		const text = this.extractString(json, ["choices", 0, "message", "content"]);
 		if (!text) {
 			throw new Error("Empty response received from Chat Completion API.");
 		}

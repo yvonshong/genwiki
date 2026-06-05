@@ -58,6 +58,26 @@ var DEFAULT_SETTINGS = {
 // src/llm.ts
 var import_obsidian = require("obsidian");
 var LLMClient = class {
+  extractString(obj, path) {
+    let cur = obj;
+    for (const key of path) {
+      if (cur === null || cur === void 0)
+        return void 0;
+      if (typeof key === "number") {
+        if (Array.isArray(cur))
+          cur = cur[key];
+        else
+          return void 0;
+      } else {
+        if (typeof cur === "object") {
+          const asObj = cur;
+          cur = asObj[key];
+        } else
+          return void 0;
+      }
+    }
+    return typeof cur === "string" ? cur : void 0;
+  }
   constructor(settings) {
     this.settings = settings;
   }
@@ -122,7 +142,7 @@ var LLMClient = class {
       throw new Error(`Gemini API Error (${response.status}): ${response.text}`);
     }
     const json = response.json;
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = this.extractString(json, ["candidates", 0, "content", "parts", 0, "text"]);
     if (!text) {
       throw new Error("Empty response received from Gemini API.");
     }
@@ -158,7 +178,7 @@ var LLMClient = class {
       throw new Error(`Anthropic API Error (${response.status}): ${response.text}`);
     }
     const json = response.json;
-    const text = json.content?.[0]?.text;
+    const text = this.extractString(json, ["content", 0, "text"]);
     if (!text) {
       throw new Error("Empty response received from Anthropic API.");
     }
@@ -208,7 +228,7 @@ var LLMClient = class {
         throw new Error(`DeepSeek Anthropic-compatible Error (${response.status}): ${response.text}`);
       }
       const json = response.json;
-      const text = json.content?.[0]?.text;
+      const text = this.extractString(json, ["content", 0, "text"]);
       if (!text) {
         throw new Error("Empty response received from DeepSeek Anthropic-compatible API.");
       }
@@ -273,7 +293,7 @@ var LLMClient = class {
       throw new Error(`API Error (${response.status}): ${response.text}`);
     }
     const json = response.json;
-    const text = json.choices?.[0]?.message?.content;
+    const text = this.extractString(json, ["choices", 0, "message", "content"]);
     if (!text) {
       throw new Error("Empty response received from Chat Completion API.");
     }
@@ -499,20 +519,22 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
       cls: "genwiki-top-ingest-btn mod-cta",
       text: "\u{1F4E5} \u5F00\u59CB\u5904\u7406\u526A\u85CF"
     });
-    startIngestBtn.addEventListener("click", async () => {
-      startIngestBtn.disabled = true;
-      startIngestBtn.setText("\u6B63\u5728\u6574\u7406\u4E2D...");
-      new import_obsidian2.Notice("\u6B63\u5728\u5F00\u59CB\u626B\u63CF\u5E76\u6574\u7406\u526A\u85CF\u8D44\u6599...");
-      try {
-        await this.plugin.runIngest();
-        new import_obsidian2.Notice("\u{1F389} \u526A\u85CF\u6574\u7406\u5B8C\u6210\uFF01");
-      } catch (e) {
-        new import_obsidian2.Notice(`Ingest \u5931\u8D25: ${e.message}`);
-        console.error(e);
-      } finally {
-        startIngestBtn.disabled = false;
-        startIngestBtn.setText("\u{1F4E5} \u5F00\u59CB\u5904\u7406\u526A\u85CF");
-      }
+    startIngestBtn.addEventListener("click", () => {
+      void (async () => {
+        startIngestBtn.disabled = true;
+        startIngestBtn.setText("\u6B63\u5728\u6574\u7406\u4E2D...");
+        new import_obsidian2.Notice("\u6B63\u5728\u5F00\u59CB\u626B\u63CF\u5E76\u6574\u7406\u526A\u85CF\u8D44\u6599...");
+        try {
+          await this.plugin.runIngest();
+          new import_obsidian2.Notice("\u{1F389} \u526A\u85CF\u6574\u7406\u5B8C\u6210\uFF01");
+        } catch (e) {
+          new import_obsidian2.Notice(`Ingest \u5931\u8D25: ${e.message}`);
+          console.error(e);
+        } finally {
+          startIngestBtn.disabled = false;
+          startIngestBtn.setText("\u{1F4E5} \u5F00\u59CB\u5904\u7406\u526A\u85CF");
+        }
+      })();
     });
     this.historyContainer = container.createDiv({ cls: "genwiki-chat-history" });
     this.historyContainer.addEventListener("click", (e) => {
@@ -532,11 +554,13 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
       placeholder: "\u5411 Wiki \u63D0\u95EE..."
     });
     this.sendButton = inputContainer.createEl("button", { text: "\u53D1\u9001" });
-    this.sendButton.addEventListener("click", () => this.handleSend());
+    this.sendButton.addEventListener("click", () => {
+      void this.handleSend();
+    });
     this.inputArea.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        this.handleSend();
+        void this.handleSend();
       }
     });
   }
@@ -579,17 +603,19 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
           cls: "genwiki-save-btn mod-cta",
           text: "\u{1F4BE} \u4FDD\u5B58\u4E3A Wiki \u9875\u9762"
         });
-        saveBtn.addEventListener("click", async () => {
-          saveBtn.disabled = true;
-          saveBtn.setText("\u6B63\u5728\u63D0\u70BC\u5F52\u7EB3...");
-          try {
-            await this.saveResponseToWiki(query, answer);
-            saveBtn.setText("\u2705 \u5DF2\u6210\u529F\u4FDD\u5B58");
-          } catch (err) {
-            new import_obsidian2.Notice(`\u4FDD\u5B58\u5931\u8D25: ${err.message}`);
-            saveBtn.disabled = false;
-            saveBtn.setText("\u{1F4BE} \u4FDD\u5B58\u4E3A Wiki \u9875\u9762");
-          }
+        saveBtn.addEventListener("click", () => {
+          void (async () => {
+            saveBtn.disabled = true;
+            saveBtn.setText("\u6B63\u5728\u63D0\u70BC\u5F52\u7EB3...");
+            try {
+              await this.saveResponseToWiki(query, answer);
+              saveBtn.setText("\u2705 \u5DF2\u6210\u529F\u4FDD\u5B58");
+            } catch (err) {
+              new import_obsidian2.Notice(`\u4FDD\u5B58\u5931\u8D25: ${err.message}`);
+              saveBtn.disabled = false;
+              saveBtn.setText("\u{1F4BE} \u4FDD\u5B58\u4E3A Wiki \u9875\u9762");
+            }
+          })();
         });
       }
     } catch (err) {
@@ -616,41 +642,51 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
     new import_obsidian2.Notice("\u6B63\u5728\u8FDB\u884C\u683C\u5F0F\u6574\u7406\u4E0E\u53BB\u8BDD\u8BED\u5316...");
     const response = await this.plugin.llmClient.complete(userPrompt, skill.systemPrompt);
     const cleanResponse = LLMClient.cleanJsonString(response);
-    let result;
-    try {
-      result = JSON.parse(cleanResponse);
-    } catch (e) {
-      console.error("Failed to parse SavePage response JSON", cleanResponse, e);
-      throw new Error("\u6A21\u578B\u751F\u6210\u7684 JSON \u683C\u5F0F\u4E0D\u89C4\u8303\uFF0C\u8BF7\u91CD\u65B0\u5C1D\u8BD5\u3002");
+    const parsed = (() => {
+      try {
+        return JSON.parse(cleanResponse);
+      } catch (e) {
+        console.error("Failed to parse SavePage response JSON", cleanResponse, e);
+        throw new Error("\u6A21\u578B\u751F\u6210\u7684 JSON \u683C\u5F0F\u4E0D\u89C4\u8303\uFF0C\u8BF7\u91CD\u65B0\u5C1D\u8BD5\u3002");
+      }
+    })();
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error("\u6A21\u578B\u751F\u6210\u7684 JSON \u4E0D\u662F\u5BF9\u8C61\u7C7B\u578B\uFF0C\u65E0\u6CD5\u4FDD\u5B58\u3002");
     }
-    if (!result.title || !result.content) {
+    const result = parsed;
+    const title = typeof result.title === "string" ? result.title : void 0;
+    const content = typeof result.content === "string" ? result.content : void 0;
+    const frontmatter = typeof result.frontmatter === "object" && result.frontmatter !== null ? result.frontmatter : void 0;
+    if (!title || !content) {
       throw new Error("\u4FDD\u5B58\u7684\u6570\u636E\u4E2D\u7F3A\u5C11\u5FC5\u8981\u7684\u6587\u4EF6\u6807\u9898(title)\u6216\u5185\u5BB9(content)\u3002");
     }
-    const fileName = result.title.replace(/[\\/:*?"<>|]/g, "_");
+    const fileName = title.replace(/[\\/:*?"<>|]/g, "_");
     const destPath = (0, import_obsidian2.normalizePath)(`${this.plugin.settings.wikiDir}/${fileName}.md`);
     const fileExists = this.plugin.app.vault.getAbstractFileByPath(destPath);
     if (fileExists) {
       throw new Error(`\u6587\u4EF6 ${destPath} \u5DF2\u5B58\u5728\uFF0C\u65E0\u6CD5\u8986\u76D6\u3002\u8BF7\u5728\u4FA7\u8FB9\u680F\u624B\u52A8\u6539\u540D\u91CD\u8BD5\u3002`);
     }
-    const fm = result.frontmatter || {};
-    const aliasesStr = fm.aliases ? JSON.stringify(fm.aliases) : "[]";
-    const summaryStr = fm.summary || "";
+    const fm = frontmatter || {};
+    const aliasesRaw = fm["aliases"];
+    const aliasesArr = Array.isArray(aliasesRaw) ? aliasesRaw.map((a) => String(a)) : [];
+    const aliasesStr = aliasesArr.length > 0 ? JSON.stringify(aliasesArr) : "[]";
+    const summaryStr = typeof fm["summary"] === "string" ? fm["summary"] : "";
     const fullContent = `---
-aliases: ${aliasesStr}
-summary: "${summaryStr.replace(/"/g, '\\"')}"
-last_updated: ${(/* @__PURE__ */ new Date()).toISOString()}
-status: active
----
+	aliases: ${aliasesStr}
+	summary: "${summaryStr.replace(/"/g, '\\"')}"
+	last_updated: ${(/* @__PURE__ */ new Date()).toISOString()}
+	status: active
+	---
 
-${result.content}`;
+	${content}`;
     await this.plugin.app.vault.create(destPath, fullContent);
     const db = await this.plugin.loadDatabase();
     const fileHash = await this.plugin.calculateHash(fullContent);
     const linksTo = this.plugin.extractLinks(fullContent);
     db.wiki_pages[destPath] = {
       path: destPath,
-      title: result.title,
-      aliases: fm.aliases || [],
+      title,
+      aliases: aliasesArr || [],
       type: "general",
       summary: summaryStr,
       status: "active",
@@ -686,8 +722,8 @@ ${result.content}`;
     }
     await this.plugin.saveDatabase(db);
     await this.plugin.rebuildIndexMd(db);
-    await this.plugin.logAction("chat_save", result.title);
-    new import_obsidian2.Notice(`\u{1F389} \u77E5\u8BC6\u70B9 [[${result.title}]] \u5DF2\u6210\u529F\u5F55\u5165 Wiki\uFF01`);
+    await this.plugin.logAction("chat_save", title);
+    new import_obsidian2.Notice(`\u{1F389} \u77E5\u8BC6\u70B9 [[${title}]] \u5DF2\u6210\u529F\u5F55\u5165 Wiki\uFF01`);
     const newFile = this.plugin.app.vault.getAbstractFileByPath(destPath);
     if (newFile instanceof import_obsidian2.TFile) {
       const leaf = this.plugin.app.workspace.getLeaf(false);
@@ -812,10 +848,10 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
         await this.app.vault.create(normalized, t.content);
       }
     }
-    const claudePath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/_agents/CLAUDE.md`);
-    const file = this.app.vault.getAbstractFileByPath(claudePath);
+    const agentsPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/_agents/agents.md`);
+    const file = this.app.vault.getAbstractFileByPath(Path);
     if (!file) {
-      await this.app.vault.create(claudePath, `# CLAUDE.md
+      await this.app.vault.create(agentsPath, `# agents.md
 
 \u672C\u534F\u8BAE\u7EA6\u675F GenWiki \u5904\u7406\u77E5\u8BC6\u7684\u89C4\u8303\u3002`);
     }
@@ -838,7 +874,11 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
     if (file instanceof import_obsidian3.TFile) {
       const text = await this.app.vault.read(file);
       try {
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        if (typeof parsed === "object" && parsed !== null && "wiki_pages" in parsed) {
+          return parsed;
+        }
+        console.error("Database file has unexpected shape, resetting");
       } catch (e) {
         console.error("Failed to parse database file, resetting", e);
       }
@@ -960,9 +1000,9 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
       new import_obsidian3.Notice(`\u6B63\u5728\u901A\u8FC7 AI \u5206\u6790 ${mdFile.name}...`);
       const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
       const cleanResponse = LLMClient.cleanJsonString(response);
-      let result;
+      let resultParsed;
       try {
-        result = JSON.parse(cleanResponse);
+        resultParsed = JSON.parse(cleanResponse);
       } catch (e) {
         console.error("Failed to parse LLM Response JSON", cleanResponse, e);
         new import_obsidian3.Notice(`\u6A21\u578B\u8FD4\u56DE\u7684 JSON \u683C\u5F0F\u4E0D\u89C4\u8303\uFF0C\u8BF7\u91CD\u8BD5\uFF01`);
@@ -976,61 +1016,89 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
         await this.saveDatabase(db);
         continue;
       }
+      if (typeof resultParsed !== "object" || resultParsed === null) {
+        new import_obsidian3.Notice(`\u6A21\u578B\u8FD4\u56DE\u7684 JSON \u683C\u5F0F\u4E0D\u89C4\u8303\uFF08\u975E\u5BF9\u8C61\uFF09\uFF0C\u8BF7\u91CD\u8BD5\uFF01`);
+        db.clippings[relativePath] = {
+          path: relativePath,
+          sha256: hash,
+          ingest_date: (/* @__PURE__ */ new Date()).toISOString(),
+          status: "failed",
+          destinations: []
+        };
+        await this.saveDatabase(db);
+        continue;
+      }
+      const result = resultParsed;
       const destinations = [];
-      if (result.operations && Array.isArray(result.operations)) {
-        for (const op of result.operations) {
-          const destPath = (0, import_obsidian3.normalizePath)(op.path);
-          destinations.push(destPath);
-          const opFile = this.app.vault.getAbstractFileByPath(destPath);
-          if (op.action === "create" || !opFile) {
-            const parts = destPath.split("/");
-            if (parts.length > 1) {
-              const parentDir = parts.slice(0, parts.length - 1).join("/");
-              if (!this.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(parentDir))) {
-                await this.app.vault.createFolder((0, import_obsidian3.normalizePath)(parentDir));
-              }
+      const operations = Array.isArray(result.operations) ? result.operations : [];
+      for (const opRaw of operations) {
+        if (typeof opRaw !== "object" || opRaw === null)
+          continue;
+        const op = opRaw;
+        const action = typeof op.action === "string" ? op.action : "unknown";
+        const opPath = typeof op.path === "string" ? op.path : void 0;
+        const opContent = typeof op.content === "string" ? op.content : void 0;
+        const opTitle = typeof op.title === "string" ? op.title : void 0;
+        if (!opPath)
+          continue;
+        const destPath = (0, import_obsidian3.normalizePath)(opPath);
+        destinations.push(destPath);
+        const opFile = this.app.vault.getAbstractFileByPath(destPath);
+        if (action === "create" || !opFile) {
+          const parts = destPath.split("/");
+          if (parts.length > 1) {
+            const parentDir = parts.slice(0, parts.length - 1).join("/");
+            if (!this.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(parentDir))) {
+              await this.app.vault.createFolder((0, import_obsidian3.normalizePath)(parentDir));
             }
-            await this.app.vault.create(destPath, op.content);
-          } else if (opFile instanceof import_obsidian3.TFile) {
-            await this.app.vault.modify(opFile, op.content);
           }
-          const fileContent = op.content;
-          const fileHash = await this.calculateHash(fileContent);
-          const linksTo = this.extractLinks(fileContent);
-          const idxUpdate = result.index_updates?.find((iu) => iu.path === op.path) || {};
-          const existingPage = db.wiki_pages[destPath];
-          const auditHistory = existingPage?.audit.history || [];
-          auditHistory.push({
-            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-            action: op.action,
-            trigger: "ingest",
-            source: relativePath
-          });
-          db.wiki_pages[destPath] = {
-            path: destPath,
-            title: op.title || opFile?.name.replace(".md", "") || "Untitled",
-            aliases: idxUpdate.aliases || existingPage?.aliases || [],
-            type: idxUpdate.type || existingPage?.type || "general",
-            summary: idxUpdate.summary || existingPage?.summary || "\u81EA\u52A8\u751F\u6210\u7684\u4FE1\u606F\u6761\u76EE\u3002",
-            status: "active",
-            last_updated: (/* @__PURE__ */ new Date()).toISOString(),
-            sha256: fileHash,
-            links_to: linksTo,
-            links_from: existingPage?.links_from || [],
-            claims: [
-              {
-                clipping_path: relativePath,
-                line_range: "all",
-                paragraph_summary: idxUpdate.summary || "\u6E90\u81EA\u526A\u85CF\u7684\u603B\u7ED3"
-              }
-            ],
-            audit: {
-              created_at: existingPage?.audit.created_at || (/* @__PURE__ */ new Date()).toISOString(),
-              last_compiled_cost_usd: 0.01,
-              history: auditHistory
-            }
-          };
+          await this.app.vault.create(destPath, opContent || "");
+        } else if (opFile instanceof import_obsidian3.TFile) {
+          await this.app.vault.modify(opFile, opContent || "");
         }
+        const fileContent = opContent || "";
+        const fileHash = await this.calculateHash(fileContent);
+        const linksTo = this.extractLinks(fileContent);
+        const indexUpdates = Array.isArray(result.index_updates) ? result.index_updates : [];
+        const idxUpdateRaw = indexUpdates.find((iu) => typeof iu === "object" && iu !== null && iu.path === opPath);
+        const idxUpdate = typeof idxUpdateRaw === "object" && idxUpdateRaw !== null ? idxUpdateRaw : {};
+        const existingPage = db.wiki_pages[destPath];
+        const auditHistory = existingPage?.audit.history || [];
+        auditHistory.push({
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          action,
+          trigger: "ingest",
+          source: relativePath
+        });
+        const idxAliasesRaw = idxUpdate["aliases"];
+        const idxAliases = Array.isArray(idxAliasesRaw) ? idxAliasesRaw.map((a) => String(a)) : existingPage?.aliases || [];
+        const idxTypeRaw = typeof idxUpdate["type"] === "string" ? idxUpdate["type"] : existingPage?.type;
+        const idxType = idxTypeRaw === "concept" || idxTypeRaw === "entity" || idxTypeRaw === "general" ? idxTypeRaw : "general";
+        const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] : existingPage?.summary || "\u81EA\u52A8\u751F\u6210\u7684\u4FE1\u606F\u6761\u76EE\u3002";
+        db.wiki_pages[destPath] = {
+          path: destPath,
+          title: opTitle || (opFile instanceof import_obsidian3.TFile ? opFile.name.replace(".md", "") : "Untitled"),
+          aliases: idxAliases,
+          type: idxType,
+          summary: idxSummary,
+          status: "active",
+          last_updated: (/* @__PURE__ */ new Date()).toISOString(),
+          sha256: fileHash,
+          links_to: linksTo,
+          links_from: existingPage?.links_from || [],
+          claims: [
+            {
+              clipping_path: relativePath,
+              line_range: "all",
+              paragraph_summary: idxSummary || "\u6E90\u81EA\u526A\u85CF\u7684\u603B\u7ED3"
+            }
+          ],
+          audit: {
+            created_at: existingPage?.audit.created_at || (/* @__PURE__ */ new Date()).toISOString(),
+            last_compiled_cost_usd: 0.01,
+            history: auditHistory
+          }
+        };
       }
       for (const pagePath of destinations) {
         const page = db.wiki_pages[pagePath];
@@ -1143,20 +1211,29 @@ ${content}
       const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
       const cleanResponse = LLMClient.cleanJsonString(response);
       try {
-        const resObj = JSON.parse(cleanResponse);
-        if (resObj.contradictions)
-          contradictions.push(...resObj.contradictions);
-        if (resObj.orphans)
-          orphans.push(...resObj.orphans);
-        if (resObj.suggestions)
-          suggestions.push(...resObj.suggestions);
+        const parsed = JSON.parse(cleanResponse);
+        if (typeof parsed === "object" && parsed !== null) {
+          const resObj = parsed;
+          if (Array.isArray(resObj.contradictions)) {
+            const validContradictions = resObj.contradictions.filter((item) => typeof item === "object" && item !== null);
+            contradictions.push(...validContradictions);
+          }
+          if (Array.isArray(resObj.orphans)) {
+            const validOrphans = resObj.orphans.filter((item) => typeof item === "string").map(String);
+            orphans.push(...validOrphans);
+          }
+          if (Array.isArray(resObj.suggestions)) {
+            const validSuggestions = resObj.suggestions.filter((item) => typeof item === "string").map(String);
+            suggestions.push(...validSuggestions);
+          }
+        }
       } catch (e) {
         console.error("Failed to parse Lint Response JSON", cleanResponse, e);
       }
     }
     const finalOrphans = orphans.filter((path) => {
       const page = db.wiki_pages[path];
-      return !page || page.links_from.length === 0;
+      return !page || !Array.isArray(page.links_from) || page.links_from.length === 0;
     });
     const reportPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/Lint_Report.md`);
     let reportContent = `# GenWiki \u77E5\u8BC6\u5E93\u5065\u5EB7\u4F53\u68C0\u5BA1\u8BA1\u62A5\u544A
@@ -1167,9 +1244,15 @@ ${content}
     reportContent += `## 1. \u4FE1\u606F\u51B2\u7A81\u4E0E\u77DB\u76FE\u8B66\u544A (Contradictions)
 `;
     if (contradictions.length > 0) {
-      for (const c of contradictions) {
-        reportContent += `* **\u6D89\u53CA\u6587\u4EF6**: ${c.files.map((f) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}
-  * **\u77DB\u76FE\u63CF\u8FF0**: ${c.description}
+      for (const cRaw of contradictions) {
+        if (typeof cRaw !== "object" || cRaw === null)
+          continue;
+        const c = cRaw;
+        const filesRaw = c["files"];
+        const filesArr = Array.isArray(filesRaw) ? filesRaw.map((f) => String(f)) : [];
+        const desc = typeof c["description"] === "string" ? c["description"] : "";
+        reportContent += `* **\u6D89\u53CA\u6587\u4EF6**: ${filesArr.map((f) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}
+  * **\u77DB\u76FE\u63CF\u8FF0**: ${desc}
 `;
       }
     } else {
@@ -1210,8 +1293,9 @@ ${content}
     await this.logAction("lint", "Lint\u5065\u5EB7\u5BA1\u8BA1\u62A5\u544A");
     new import_obsidian3.Notice("\u{1F389} \u77E5\u8BC6\u5065\u5EB7\u4F53\u68C0\u5B8C\u6210\uFF01\u62A5\u544A\u5DF2\u751F\u6210\u3002");
     const leaf = this.app.workspace.getLeaf(false);
-    if (leaf)
-      await leaf.openFile(this.app.vault.getAbstractFileByPath(reportPath));
+    const reportFileObj = this.app.vault.getAbstractFileByPath(reportPath);
+    if (leaf && reportFileObj instanceof import_obsidian3.TFile)
+      await leaf.openFile(reportFileObj);
   }
 };
 var QueryModal = class extends import_obsidian3.Modal {
@@ -1227,15 +1311,9 @@ var QueryModal = class extends import_obsidian3.Modal {
       type: "text",
       placeholder: "\u8BF7\u8F93\u5165\u60A8\u5BF9 Wiki \u7684\u7591\u95EE\uFF08\u652F\u6301\u6A21\u7CCA\u8BED\u4E49\u68C0\u7D22\uFF09..."
     });
-    inputEl.style.width = "100%";
-    inputEl.style.marginBottom = "15px";
+    inputEl.addClass("genwiki-query-input");
     const submitBtn = contentEl.createEl("button", { text: "\u63D0\u4EA4\u95EE\u7B54" });
-    const resultContainer = contentEl.createDiv();
-    resultContainer.style.marginTop = "15px";
-    resultContainer.style.maxHeight = "300px";
-    resultContainer.style.overflowY = "auto";
-    resultContainer.style.borderTop = "1px solid var(--border-color)";
-    resultContainer.style.paddingTop = "15px";
+    const resultContainer = contentEl.createDiv({ cls: "genwiki-query-result" });
     submitBtn.addEventListener("click", async () => {
       const query = inputEl.value.trim();
       if (!query)
@@ -1245,8 +1323,7 @@ var QueryModal = class extends import_obsidian3.Modal {
       try {
         const ans = await this.plugin.executeQuery(query);
         resultContainer.empty();
-        const preEl = resultContainer.createEl("pre");
-        preEl.style.whiteSpace = "pre-wrap";
+        const preEl = resultContainer.createEl("pre", { cls: "genwiki-query-pre" });
         preEl.setText(ans);
       } catch (e) {
         resultContainer.setText(`\u67E5\u8BE2\u9519\u8BEF: ${e.message}`);
@@ -1295,7 +1372,7 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian3.Setting(containerEl).setName("GenWiki Settings (\u5927\u6A21\u578B\u8BBE\u7F6E)").setHeading();
+    new import_obsidian3.Setting(containerEl).setName("\u5927\u6A21\u578B\u8BBE\u7F6E").setHeading();
     new import_obsidian3.Setting(containerEl).setName("\u9ED8\u8BA4\u5927\u6A21\u578B\u4F9B\u5E94\u5546 (Provider)").setDesc("\u9009\u62E9\u4F7F\u7528\u7684\u6A21\u578B\u901A\u9053").addDropdown((dropdown) => dropdown.addOption("gemini", "Google Gemini").addOption("anthropic", "Anthropic Claude").addOption("openai", "OpenAI").addOption("deepseek", "DeepSeek").addOption("kimi", "Moonshot Kimi").addOption("openrouter", "OpenRouter").setValue(this.plugin.settings.provider).onChange(async (value) => {
       this.plugin.settings.provider = value;
       await this.plugin.saveSettings();
@@ -1460,5 +1537,8 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       this.plugin.settings.wikiDir = value;
       await this.plugin.saveSettings();
     }));
+  }
+  getSettingDefinitions() {
+    return [];
   }
 };

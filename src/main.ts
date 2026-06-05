@@ -168,7 +168,11 @@ export default class GenWikiPlugin extends Plugin {
 		if (file instanceof TFile) {
 			const text = await this.app.vault.read(file);
 			try {
-				return JSON.parse(text);
+				const parsed = JSON.parse(text) as unknown;
+				if (typeof parsed === "object" && parsed !== null && "wiki_pages" in (parsed as Record<string, unknown>)) {
+					return parsed as DatabaseIndex;
+				}
+				console.error("Database file has unexpected shape, resetting");
 			} catch (e) {
 				console.error("Failed to parse database file, resetting", e);
 			}
@@ -266,7 +270,7 @@ export default class GenWikiPlugin extends Plugin {
 		// Load db
 		const db = await this.loadDatabase();
 		const files = clippingsFolder.children;
-		const mdFiles = files.filter(f => f instanceof TFile && f.extension === "md") as TFile[];
+		const mdFiles = files.filter((f): f is TFile => f instanceof TFile && f.extension === "md");
 
 		let processedAny = false;
 
@@ -303,9 +307,9 @@ export default class GenWikiPlugin extends Plugin {
 			const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
 			const cleanResponse = LLMClient.cleanJsonString(response);
 
-			let result;
+			let resultParsed: unknown;
 			try {
-				result = JSON.parse(cleanResponse);
+				resultParsed = JSON.parse(cleanResponse) as unknown;
 			} catch (e) {
 				console.error("Failed to parse LLM Response JSON", cleanResponse, e);
 				new Notice(`模型返回的 JSON 格式不规范，请重试！`);
@@ -320,71 +324,100 @@ export default class GenWikiPlugin extends Plugin {
 				continue;
 			}
 
+			if (typeof resultParsed !== "object" || resultParsed === null) {
+				new Notice(`模型返回的 JSON 格式不规范（非对象），请重试！`);
+				db.clippings[relativePath] = {
+					path: relativePath,
+					sha256: hash,
+					ingest_date: new Date().toISOString(),
+					status: "failed",
+					destinations: []
+				};
+				await this.saveDatabase(db);
+				continue;
+			}
+
+			const result = resultParsed as Record<string, unknown>;
+
 			const destinations: string[] = [];
 
 			// Apply operations (create or modify files)
-			if (result.operations && Array.isArray(result.operations)) {
-				for (const op of result.operations) {
-					const destPath = normalizePath(op.path);
-					destinations.push(destPath);
-					const opFile = this.app.vault.getAbstractFileByPath(destPath);
+			const operations = Array.isArray(result.operations) ? result.operations as unknown[] : [];
+			for (const opRaw of operations) {
+				if (typeof opRaw !== "object" || opRaw === null) continue;
+				const op = opRaw as Record<string, unknown>;
+				const action = typeof op.action === "string" ? op.action : "unknown";
+				const opPath = typeof op.path === "string" ? op.path : undefined;
+				const opContent = typeof op.content === "string" ? op.content : undefined;
+				const opTitle = typeof op.title === "string" ? op.title : undefined;
+				if (!opPath) continue;
+				const destPath = normalizePath(opPath);
+				destinations.push(destPath);
+				const opFile = this.app.vault.getAbstractFileByPath(destPath);
 
-					if (op.action === "create" || !opFile) {
-						// Ensure directory structure
-						const parts = destPath.split("/");
-						if (parts.length > 1) {
-							const parentDir = parts.slice(0, parts.length - 1).join("/");
-							if (!this.app.vault.getAbstractFileByPath(normalizePath(parentDir))) {
-								await this.app.vault.createFolder(normalizePath(parentDir));
-							}
+				if (action === "create" || !opFile) {
+					// Ensure directory structure
+					const parts = destPath.split("/");
+					if (parts.length > 1) {
+						const parentDir = parts.slice(0, parts.length - 1).join("/");
+						if (!this.app.vault.getAbstractFileByPath(normalizePath(parentDir))) {
+							await this.app.vault.createFolder(normalizePath(parentDir));
 						}
-						await this.app.vault.create(destPath, op.content);
-					} else if (opFile instanceof TFile) {
-						await this.app.vault.modify(opFile, op.content);
 					}
-
-					// Update database metadata for this page
-					const fileContent = op.content;
-					const fileHash = await this.calculateHash(fileContent);
-					const linksTo = this.extractLinks(fileContent);
-
-					// Index updates
-					const idxUpdate = result.index_updates?.find((iu: any) => iu.path === op.path) || {};
-
-					const existingPage = db.wiki_pages[destPath];
-					const auditHistory = existingPage?.audit.history || [];
-					auditHistory.push({
-						timestamp: new Date().toISOString(),
-						action: op.action,
-						trigger: "ingest",
-						source: relativePath
-					});
-
-					db.wiki_pages[destPath] = {
-						path: destPath,
-						title: op.title || opFile?.name.replace(".md", "") || "Untitled",
-						aliases: idxUpdate.aliases || existingPage?.aliases || [],
-						type: idxUpdate.type || existingPage?.type || "general",
-						summary: idxUpdate.summary || existingPage?.summary || "自动生成的信息条目。",
-						status: "active",
-						last_updated: new Date().toISOString(),
-						sha256: fileHash,
-						links_to: linksTo,
-						links_from: existingPage?.links_from || [],
-						claims: [
-							{
-								clipping_path: relativePath,
-								line_range: "all",
-								paragraph_summary: idxUpdate.summary || "源自剪藏的总结"
-							}
-						],
-						audit: {
-							created_at: existingPage?.audit.created_at || new Date().toISOString(),
-							last_compiled_cost_usd: 0.01,
-							history: auditHistory
-						}
-					};
+					await this.app.vault.create(destPath, opContent || "");
+				} else if (opFile instanceof TFile) {
+					await this.app.vault.modify(opFile, opContent || "");
 				}
+
+				// Update database metadata for this page
+				const fileContent = opContent || "";
+				const fileHash = await this.calculateHash(fileContent);
+				const linksTo = this.extractLinks(fileContent);
+
+				// Index updates
+				const indexUpdates = Array.isArray(result.index_updates) ? result.index_updates as unknown[] : [];
+				const idxUpdateRaw = indexUpdates.find(iu => typeof iu === "object" && iu !== null && (iu as Record<string, unknown>).path === opPath);
+				const idxUpdate = (typeof idxUpdateRaw === "object" && idxUpdateRaw !== null) ? idxUpdateRaw as Record<string, unknown> : {} as Record<string, unknown>;
+
+				const existingPage = db.wiki_pages[destPath];
+				const auditHistory = existingPage?.audit.history || [];
+				auditHistory.push({
+					timestamp: new Date().toISOString(),
+					action: action,
+					trigger: "ingest",
+					source: relativePath
+				});
+
+				const idxAliasesRaw = idxUpdate["aliases"];
+				const idxAliases = Array.isArray(idxAliasesRaw) ? idxAliasesRaw.map(a => String(a)) : existingPage?.aliases || [];
+				const idxTypeRaw = typeof idxUpdate["type"] === "string" ? idxUpdate["type"] as string : existingPage?.type;
+				const idxType = idxTypeRaw === "concept" || idxTypeRaw === "entity" || idxTypeRaw === "general" ? idxTypeRaw : "general";
+				const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] as string : existingPage?.summary || "自动生成的信息条目。";
+
+				db.wiki_pages[destPath] = {
+					path: destPath,
+					title: opTitle || (opFile instanceof TFile ? opFile.name.replace(".md", "") : "Untitled"),
+					aliases: idxAliases,
+					type: idxType,
+					summary: idxSummary,
+					status: "active",
+					last_updated: new Date().toISOString(),
+					sha256: fileHash,
+					links_to: linksTo,
+					links_from: existingPage?.links_from || [],
+					claims: [
+						{
+							clipping_path: relativePath,
+							line_range: "all",
+							paragraph_summary: idxSummary || "源自剪藏的总结"
+						}
+					],
+					audit: {
+						created_at: existingPage?.audit.created_at || new Date().toISOString(),
+						last_compiled_cost_usd: 0.01,
+						history: auditHistory
+					}
+				};
 			}
 
 			// Update link_from backreferences
@@ -501,7 +534,7 @@ export default class GenWikiPlugin extends Plugin {
 
 		// Group pages (batch of 5)
 		const batchSize = 5;
-		const contradictions: any[] = [];
+		const contradictions: unknown[] = [];
 		const orphans: string[] = [];
 		const suggestions: string[] = [];
 
@@ -526,10 +559,22 @@ export default class GenWikiPlugin extends Plugin {
 			const cleanResponse = LLMClient.cleanJsonString(response);
 
 			try {
-				const resObj = JSON.parse(cleanResponse);
-				if (resObj.contradictions) contradictions.push(...resObj.contradictions);
-				if (resObj.orphans) orphans.push(...resObj.orphans);
-				if (resObj.suggestions) suggestions.push(...resObj.suggestions);
+				const parsed = JSON.parse(cleanResponse) as unknown;
+				if (typeof parsed === "object" && parsed !== null) {
+					const resObj = parsed as Record<string, unknown>;
+					if (Array.isArray(resObj.contradictions)) {
+						const validContradictions = resObj.contradictions.filter(item => typeof item === "object" && item !== null);
+						contradictions.push(...validContradictions as unknown[]);
+					}
+					if (Array.isArray(resObj.orphans)) {
+						const validOrphans = resObj.orphans.filter(item => typeof item === "string").map(String);
+						orphans.push(...validOrphans);
+					}
+					if (Array.isArray(resObj.suggestions)) {
+						const validSuggestions = resObj.suggestions.filter(item => typeof item === "string").map(String);
+						suggestions.push(...validSuggestions);
+					}
+				}
 			} catch (e) {
 				console.error("Failed to parse Lint Response JSON", cleanResponse, e);
 			}
@@ -538,7 +583,7 @@ export default class GenWikiPlugin extends Plugin {
 		// Post processing for orphans (check backlinks)
 		const finalOrphans = orphans.filter(path => {
 			const page = db.wiki_pages[path];
-			return !page || page.links_from.length === 0;
+			return !page || !Array.isArray(page.links_from) || page.links_from.length === 0;
 		});
 
 		// Write Lint Report
@@ -547,8 +592,13 @@ export default class GenWikiPlugin extends Plugin {
 
 		reportContent += `## 1. 信息冲突与矛盾警告 (Contradictions)\n`;
 		if (contradictions.length > 0) {
-			for (const c of contradictions) {
-				reportContent += `* **涉及文件**: ${c.files.map((f: string) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}\n  * **矛盾描述**: ${c.description}\n`;
+			for (const cRaw of contradictions) {
+				if (typeof cRaw !== "object" || cRaw === null) continue;
+				const c = cRaw as Record<string, unknown>;
+				const filesRaw = c["files"];
+				const filesArr = Array.isArray(filesRaw) ? filesRaw.map(f => String(f)) : [];
+				const desc = typeof c["description"] === "string" ? c["description"] as string : "";
+				reportContent += `* **涉及文件**: ${filesArr.map((f: string) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}\n  * **矛盾描述**: ${desc}\n`;
 			}
 		} else {
 			reportContent += `✅ 未检测到明显的逻辑冲突或数据矛盾。\n`;
@@ -584,7 +634,8 @@ export default class GenWikiPlugin extends Plugin {
 		await this.logAction("lint", "Lint健康审计报告");
 		new Notice("🎉 知识健康体检完成！报告已生成。");
 		const leaf = this.app.workspace.getLeaf(false);
-		if (leaf) await leaf.openFile(this.app.vault.getAbstractFileByPath(reportPath) as TFile);
+		const reportFileObj = this.app.vault.getAbstractFileByPath(reportPath);
+		if (leaf && reportFileObj instanceof TFile) await leaf.openFile(reportFileObj);
 	}
 }
 
@@ -606,16 +657,10 @@ class QueryModal extends Modal {
 			type: "text",
 			placeholder: "请输入您对 Wiki 的疑问（支持模糊语义检索）..."
 		});
-		inputEl.style.width = "100%";
-		inputEl.style.marginBottom = "15px";
+			inputEl.addClass("genwiki-query-input");
 
-		const submitBtn = contentEl.createEl("button", { text: "提交问答" });
-		const resultContainer = contentEl.createDiv();
-		resultContainer.style.marginTop = "15px";
-		resultContainer.style.maxHeight = "300px";
-		resultContainer.style.overflowY = "auto";
-		resultContainer.style.borderTop = "1px solid var(--border-color)";
-		resultContainer.style.paddingTop = "15px";
+			const submitBtn = contentEl.createEl("button", { text: "提交问答" });
+			const resultContainer = contentEl.createDiv({ cls: "genwiki-query-result" });
 
 		submitBtn.addEventListener("click", async () => {
 			const query = inputEl.value.trim();
@@ -628,9 +673,8 @@ class QueryModal extends Modal {
 				const ans = await this.plugin.executeQuery(query);
 				resultContainer.empty();
 				// Render simple markdown response
-				const preEl = resultContainer.createEl("pre");
-				preEl.style.whiteSpace = "pre-wrap";
-				preEl.setText(ans);
+					const preEl = resultContainer.createEl("pre", { cls: "genwiki-query-pre" });
+					preEl.setText(ans);
 			} catch (e) {
 				resultContainer.setText(`查询错误: ${(e as Error).message}`);
 				console.error(e);
@@ -702,7 +746,7 @@ class GenWikiSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl).setName("GenWiki Settings (大模型设置)").setHeading();
+			new Setting(containerEl).setName("大模型设置").setHeading();
 
 		new Setting(containerEl)
 			.setName("默认大模型供应商 (Provider)")
@@ -936,5 +980,10 @@ class GenWikiSettingTab extends PluginSettingTab {
 					this.plugin.settings.wikiDir = value;
 					await this.plugin.saveSettings();
 				}));
+	}
+
+	getSettingDefinitions(): import("obsidian").SettingDefinitionItem<string>[] {
+		// Return empty array - `display()` still used for full rendering.
+		return [];
 	}
 }

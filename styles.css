@@ -99,3 +99,24 @@
     padding: 4px 8px;
     margin: 0;
 }
+
+/* Query modal styles */
+.genwiki-query-input {
+    width: 100%;
+    margin-bottom: 15px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.genwiki-query-result {
+    margin-top: 15px;
+    max-height: 300px;
+    overflow-y: auto;
+    border-top: 1px solid var(--border-color);
+    padding-top: 15px;
+}
+
+.genwiki-query-pre {
+    white-space: pre-wrap;
+}

@@ -2,7 +2,7 @@
   "id": "genwiki",
   "name": "GenWiki",
   "version": "1.0.2",
-  "minAppVersion": "1.5.0",
+  "minAppVersion": "1.13.0",
   "description": "Incremental personal knowledge base using LLMs.",
   "author": "yvonshong",
   "authorUrl": "https://github.com/yvonshong",

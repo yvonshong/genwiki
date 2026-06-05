@@ -41,21 +41,23 @@ export class GenWikiChatView extends ItemView {
 			cls: "genwiki-top-ingest-btn mod-cta",
 			text: "📥 开始处理剪藏"
 		});
-		startIngestBtn.addEventListener("click", async () => {
-			startIngestBtn.disabled = true;
-			startIngestBtn.setText("正在整理中...");
-			new Notice("正在开始扫描并整理剪藏资料...");
-			try {
-				// Access plugin directly to run ingest
-				await this.plugin.runIngest();
-				new Notice("🎉 剪藏整理完成！");
-			} catch (e) {
-				new Notice(`Ingest 失败: ${(e as Error).message}`);
-				console.error(e);
-			} finally {
-				startIngestBtn.disabled = false;
-				startIngestBtn.setText("📥 开始处理剪藏");
-			}
+		startIngestBtn.addEventListener("click", () => {
+			void (async () => {
+				startIngestBtn.disabled = true;
+				startIngestBtn.setText("正在整理中...");
+				new Notice("正在开始扫描并整理剪藏资料...");
+				try {
+					// Access plugin directly to run ingest
+					await this.plugin.runIngest();
+					new Notice("🎉 剪藏整理完成！");
+				} catch (e) {
+					new Notice(`Ingest 失败: ${(e as Error).message}`);
+					console.error(e);
+				} finally {
+					startIngestBtn.disabled = false;
+					startIngestBtn.setText("📥 开始处理剪藏");
+				}
+			})();
 		});
 
 		// Chat History Area
@@ -88,11 +90,11 @@ export class GenWikiChatView extends ItemView {
 		this.sendButton = inputContainer.createEl("button", { text: "发送" });
 
 		// Event Listeners
-		this.sendButton.addEventListener("click", () => this.handleSend());
+		this.sendButton.addEventListener("click", () => { void this.handleSend(); });
 		this.inputArea.addEventListener("keydown", (e) => {
 			if (e.key === "Enter" && !e.shiftKey) {
 				e.preventDefault();
-				this.handleSend();
+				void this.handleSend();
 			}
 		});
 	}
@@ -152,17 +154,19 @@ export class GenWikiChatView extends ItemView {
 					text: "💾 保存为 Wiki 页面"
 				});
 
-				saveBtn.addEventListener("click", async () => {
-					saveBtn.disabled = true;
-					saveBtn.setText("正在提炼归纳...");
-					try {
-						await this.saveResponseToWiki(query, answer);
-						saveBtn.setText("✅ 已成功保存");
-					} catch (err) {
-						new Notice(`保存失败: ${(err as Error).message}`);
-						saveBtn.disabled = false;
-						saveBtn.setText("💾 保存为 Wiki 页面");
-					}
+				saveBtn.addEventListener("click", () => {
+					void (async () => {
+						saveBtn.disabled = true;
+						saveBtn.setText("正在提炼归纳...");
+						try {
+							await this.saveResponseToWiki(query, answer);
+							saveBtn.setText("✅ 已成功保存");
+						} catch (err) {
+							new Notice(`保存失败: ${(err as Error).message}`);
+							saveBtn.disabled = false;
+							saveBtn.setText("💾 保存为 Wiki 页面");
+						}
+					})();
 				});
 			}
 
@@ -197,20 +201,30 @@ export class GenWikiChatView extends ItemView {
 		const response = await this.plugin.llmClient.complete(userPrompt, skill.systemPrompt);
 		const cleanResponse = LLMClient.cleanJsonString(response);
 
-		let result;
-		try {
-			result = JSON.parse(cleanResponse);
-		} catch (e) {
-			console.error("Failed to parse SavePage response JSON", cleanResponse, e);
-			throw new Error("模型生成的 JSON 格式不规范，请重新尝试。");
+		const parsed = (() => {
+			try {
+				return JSON.parse(cleanResponse) as unknown;
+			} catch (e) {
+				console.error("Failed to parse SavePage response JSON", cleanResponse, e);
+				throw new Error("模型生成的 JSON 格式不规范，请重新尝试。");
+			}
+		})();
+
+		if (typeof parsed !== "object" || parsed === null) {
+			throw new Error("模型生成的 JSON 不是对象类型，无法保存。");
 		}
 
-		if (!result.title || !result.content) {
+		const result = parsed as Record<string, unknown>;
+		const title = typeof result.title === "string" ? result.title : undefined;
+		const content = typeof result.content === "string" ? result.content : undefined;
+		const frontmatter = typeof result.frontmatter === "object" && result.frontmatter !== null ? result.frontmatter as Record<string, unknown> : undefined;
+
+		if (!title || !content) {
 			throw new Error("保存的数据中缺少必要的文件标题(title)或内容(content)。");
 		}
 
 		// 4. Determine save path
-		const fileName = result.title.replace(/[\\/:*?"<>|]/g, "_"); // sanitize file name
+		const fileName = title.replace(/[\\/:*?"<>|]/g, "_"); // sanitize file name
 		const destPath = normalizePath(`${this.plugin.settings.wikiDir}/${fileName}.md`);
 
 		const fileExists = this.plugin.app.vault.getAbstractFileByPath(destPath);
@@ -219,18 +233,20 @@ export class GenWikiChatView extends ItemView {
 		}
 
 		// 5. Build Frontmatter and Write Markdown File
-		const fm = result.frontmatter || {};
-		const aliasesStr = fm.aliases ? JSON.stringify(fm.aliases) : "[]";
-		const summaryStr = fm.summary || "";
-		
-		const fullContent = `---
-aliases: ${aliasesStr}
-summary: "${summaryStr.replace(/"/g, '\\"')}"
-last_updated: ${new Date().toISOString()}
-status: active
----
+		const fm = frontmatter || {} as Record<string, unknown>;
+		const aliasesRaw = fm["aliases"];
+		const aliasesArr = Array.isArray(aliasesRaw) ? aliasesRaw.map(a => String(a)) : [];
+		const aliasesStr = aliasesArr.length > 0 ? JSON.stringify(aliasesArr) : "[]";
+		const summaryStr = typeof fm["summary"] === "string" ? fm["summary"] as string : "";
 
-${result.content}`;
+		const fullContent = `---
+	aliases: ${aliasesStr}
+	summary: "${summaryStr.replace(/"/g, '\\"')}"
+	last_updated: ${new Date().toISOString()}
+	status: active
+	---
+
+	${content}`;
 
 		await this.plugin.app.vault.create(destPath, fullContent);
 
@@ -241,8 +257,8 @@ ${result.content}`;
 
 		db.wiki_pages[destPath] = {
 			path: destPath,
-			title: result.title,
-			aliases: fm.aliases || [],
+			title: title,
+			aliases: aliasesArr || [],
 			type: "general",
 			summary: summaryStr,
 			status: "active",
@@ -285,8 +301,8 @@ ${result.content}`;
 		await this.plugin.rebuildIndexMd(db);
 
 		// 8. Log and notice
-		await this.plugin.logAction("chat_save", result.title);
-		new Notice(`🎉 知识点 [[${result.title}]] 已成功录入 Wiki！`);
+		await this.plugin.logAction("chat_save", title);
+		new Notice(`🎉 知识点 [[${title}]] 已成功录入 Wiki！`);
 
 		// Open the newly created page
 		const newFile = this.plugin.app.vault.getAbstractFileByPath(destPath);
