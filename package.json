@@ -1,6 +1,6 @@
 {
   "name": "genwiki",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Incremental personal knowledge base using LLMs for Obsidian",
   "main": "main.js",
   "scripts": {
