@@ -69,7 +69,7 @@ To bypass iOS sandbox constraints and support frictionless cross-device synchron
 ### Manual Installation
 1. Download the latest release files (`main.js`, `manifest.json`, `styles.css`) from the [Releases](https://github.com/yvonshong/genwiki/releases) page.
 2. Inside your Obsidian vault, navigate to `.obsidian/plugins/` (create the directory if it doesn't exist).
-3. Create a subfolder named `obsidian-genwiki` and paste the three files inside it.
+3. Create a subfolder named `genwiki` and paste the three files inside it.
 4. Open Obsidian, go to **Settings $\rightarrow$ Community Plugins**, and toggle **GenWiki** on.
 
 ---
