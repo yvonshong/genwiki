@@ -784,13 +784,15 @@ class GenWikiSettingTab extends PluginSettingTab {
 		if (prov === "gemini") {
 			new Setting(containerEl)
 				.setName("Gemini API Key")
-				.addText(text => text
-					.setPlaceholder("Enter Gemini API Key")
-					.setValue(this.plugin.settings.geminiApiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.geminiApiKey = value;
-						await this.plugin.saveSettings();
-					}));
+				.addText(text => {
+					text.inputEl.type = "password";
+					text.setPlaceholder("Enter Gemini API Key")
+						.setValue(this.plugin.settings.geminiApiKey)
+						.onChange(async (value) => {
+							this.plugin.settings.geminiApiKey = value;
+							await this.plugin.saveSettings();
+						});
+				});
 
 			this.addModelSetting(
 				containerEl,
@@ -815,13 +817,15 @@ class GenWikiSettingTab extends PluginSettingTab {
 		if (prov === "anthropic") {
 			new Setting(containerEl)
 				.setName("Anthropic API Key")
-				.addText(text => text
-					.setPlaceholder("Enter Anthropic API Key")
-					.setValue(this.plugin.settings.anthropicApiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.anthropicApiKey = value;
-						await this.plugin.saveSettings();
-					}));
+				.addText(text => {
+					text.inputEl.type = "password";
+					text.setPlaceholder("Enter Anthropic API Key")
+						.setValue(this.plugin.settings.anthropicApiKey)
+						.onChange(async (value) => {
+							this.plugin.settings.anthropicApiKey = value;
+							await this.plugin.saveSettings();
+						});
+				});
 
 			this.addModelSetting(
 				containerEl,
@@ -843,13 +847,15 @@ class GenWikiSettingTab extends PluginSettingTab {
 		if (prov === "openai") {
 			new Setting(containerEl)
 				.setName("OpenAI API Key")
-				.addText(text => text
-					.setPlaceholder("Enter OpenAI API Key")
-					.setValue(this.plugin.settings.openaiApiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.openaiApiKey = value;
-						await this.plugin.saveSettings();
-					}));
+				.addText(text => {
+					text.inputEl.type = "password";
+					text.setPlaceholder("Enter OpenAI API Key")
+						.setValue(this.plugin.settings.openaiApiKey)
+						.onChange(async (value) => {
+							this.plugin.settings.openaiApiKey = value;
+							await this.plugin.saveSettings();
+						});
+				});
 
 			this.addModelSetting(
 				containerEl,
@@ -873,13 +879,15 @@ class GenWikiSettingTab extends PluginSettingTab {
 		if (prov === "deepseek") {
 			new Setting(containerEl)
 				.setName("DeepSeek API Key")
-				.addText(text => text
-					.setPlaceholder("Enter DeepSeek API Key")
-					.setValue(this.plugin.settings.deepseekApiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.deepseekApiKey = value;
-						await this.plugin.saveSettings();
-					}));
+				.addText(text => {
+					text.inputEl.type = "password";
+					text.setPlaceholder("Enter DeepSeek API Key")
+						.setValue(this.plugin.settings.deepseekApiKey)
+						.onChange(async (value) => {
+							this.plugin.settings.deepseekApiKey = value;
+							await this.plugin.saveSettings();
+						});
+				});
 
 			this.addModelSetting(
 				containerEl,
@@ -901,13 +909,15 @@ class GenWikiSettingTab extends PluginSettingTab {
 		if (prov === "kimi") {
 			new Setting(containerEl)
 				.setName("Kimi API Key")
-				.addText(text => text
-					.setPlaceholder("Enter Moonshot API Key")
-					.setValue(this.plugin.settings.kimiApiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.kimiApiKey = value;
-						await this.plugin.saveSettings();
-					}));
+				.addText(text => {
+					text.inputEl.type = "password";
+					text.setPlaceholder("Enter Moonshot API Key")
+						.setValue(this.plugin.settings.kimiApiKey)
+						.onChange(async (value) => {
+							this.plugin.settings.kimiApiKey = value;
+							await this.plugin.saveSettings();
+						});
+				});
 
 			this.addModelSetting(
 				containerEl,
@@ -933,13 +943,15 @@ class GenWikiSettingTab extends PluginSettingTab {
 		if (prov === "openrouter") {
 			new Setting(containerEl)
 				.setName("OpenRouter API Key")
-				.addText(text => text
-					.setPlaceholder("Enter OpenRouter API Key")
-					.setValue(this.plugin.settings.openrouterApiKey)
-					.onChange(async (value) => {
-						this.plugin.settings.openrouterApiKey = value;
-						await this.plugin.saveSettings();
-					}));
+				.addText(text => {
+					text.inputEl.type = "password";
+					text.setPlaceholder("Enter OpenRouter API Key")
+						.setValue(this.plugin.settings.openrouterApiKey)
+						.onChange(async (value) => {
+							this.plugin.settings.openrouterApiKey = value;
+							await this.plugin.saveSettings();
+						});
+				});
 
 			this.addModelSetting(
 				containerEl,
