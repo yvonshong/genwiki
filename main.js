@@ -1341,13 +1341,6 @@ ${generatedLinks}`;
       return "No relevant records in the knowledge base.";
     const pagesToRead = matchingPages.slice(0, 5);
     let combinedContents = "";
-    const searchMethod = usedSemanticSearch ? "Semantic (Cosine Similarity)" : "Keyword/Full-text";
-    let debugInfo = `
-## Query at ${(/* @__PURE__ */ new Date()).toISOString()}
-**Question**: ${question}
-**Search Method**: ${searchMethod}
-**Passed to LLM**: ${pagesToRead.map((p) => p.title).join(", ")}
-`;
     for (const p of pagesToRead) {
       const file = this.app.vault.getAbstractFileByPath(p.path);
       if (file instanceof import_obsidian3.TFile) {
@@ -1360,22 +1353,6 @@ ${content}
     }
     if (!combinedContents.trim()) {
       combinedContents = "(No relevant Wiki knowledge content, please ingest clippings first)";
-    }
-    debugInfo += `**Passed to LLM (Top 5 or matched)**:
-${pagesToRead.map((p) => p.title).join(", ")}
-`;
-    try {
-      const debugLogPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/debug_log.md`);
-      let logContent = "";
-      const logFile = this.app.vault.getAbstractFileByPath(debugLogPath);
-      if (logFile instanceof import_obsidian3.TFile) {
-        logContent = await this.app.vault.read(logFile);
-        await this.app.vault.modify(logFile, logContent + debugInfo);
-      } else {
-        await this.app.vault.create(debugLogPath, debugInfo);
-      }
-    } catch (e) {
-      console.error("Failed to write debug log", e);
     }
     const userPrompt = fillTemplate(skill.userPromptTemplate, {
       user_question: question,
