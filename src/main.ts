@@ -521,11 +521,21 @@ export default class GenWikiPlugin extends Plugin {
 		
 		const matchingPages: WikiPageMetadata[] = [];
 		for (const page of Object.values(db.wiki_pages)) {
-			const matches = keywords.some(kw => 
-				page.title.toLowerCase().includes(kw) || 
-				page.summary.toLowerCase().includes(kw) ||
-				page.aliases.some(alias => alias.toLowerCase().includes(kw))
-			);
+			const pageTitle = page.title.toLowerCase();
+			const matches = keywords.some(kw => {
+				if (pageTitle.includes(kw)) return true;
+				// Bidirectional match: if the query string contains the title, it's highly relevant (e.g., query "什么是知识图谱" contains title "知识图谱")
+				if (pageTitle.length > 1 && kw.includes(pageTitle)) return true;
+				
+				if (page.summary.toLowerCase().includes(kw)) return true;
+				
+				if (page.aliases.some(alias => {
+					const a = alias.toLowerCase();
+					return a.includes(kw) || (a.length > 1 && kw.includes(a));
+				})) return true;
+				
+				return false;
+			});
 			if (matches) {
 				matchingPages.push(page);
 			}
@@ -534,13 +544,6 @@ export default class GenWikiPlugin extends Plugin {
 		// If no matches, fall back to reading top 5 pages
 		const pagesToRead = matchingPages.length > 0 ? matchingPages.slice(0, 5) : Object.values(db.wiki_pages).slice(0, 5);
 		let combinedContents = "";
-
-		// Always include the global index to give the LLM an overview
-		const indexFile = this.app.vault.getAbstractFileByPath(normalizePath(`${this.settings.wikiDir}/index.md`));
-		if (indexFile instanceof TFile) {
-			const indexContent = await this.app.vault.read(indexFile);
-			combinedContents += `\n=== GLOBAL KNOWLEDGE INDEX ===\n${indexContent}\n`;
-		}
 
 		for (const p of pagesToRead) {
 			const file = this.app.vault.getAbstractFileByPath(p.path);
