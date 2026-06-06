@@ -283,14 +283,26 @@ export default class GenWikiPlugin extends Plugin {
 		const files = clippingsFolder.children;
 		const mdFiles = files.filter((f): f is TFile => f instanceof TFile && f.extension === "md");
 
-		let processedAny = false;
-
-		for (const mdFile of mdFiles) {
+		const pendingFiles = mdFiles.filter(mdFile => {
 			const relativePath = mdFile.path;
-			// Skip files already in Archived folder or marked as processed
-			if (relativePath.includes("/Archived/")) continue;
+			if (relativePath.includes("/Archived/")) return false;
 			const clippingMeta = db.clippings[relativePath];
-			if (clippingMeta && clippingMeta.status === "processed") continue;
+			if (clippingMeta && clippingMeta.status === "processed") return false;
+			return true;
+		});
+
+		if (pendingFiles.length === 0) {
+			new Notice("No new clippings to process.");
+			return;
+		}
+
+		let processedAny = false;
+		let processedCount = 0;
+		const totalPending = pendingFiles.length;
+
+		for (const mdFile of pendingFiles) {
+			processedCount++;
+			const relativePath = mdFile.path;
 
 			// Ingest file
 			const content = await this.app.vault.read(mdFile);
@@ -314,7 +326,7 @@ export default class GenWikiPlugin extends Plugin {
 				clipping_content: content
 			});
 
-			new Notice(`Analyzing with AI: ${mdFile.name}...`);
+			new Notice(`[${processedCount}/${totalPending}] Analyzing with AI: ${mdFile.name}...`);
 			const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
 			const cleanResponse = LLMClient.cleanJsonString(response);
 
