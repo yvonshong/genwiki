@@ -146,7 +146,7 @@ export class GenWikiChatView extends ItemView {
 				new Notice("Copied to clipboard!");
 			});
 
-			const isNoRecord = answer.includes("No relevant records") || answer.includes("No relevant") || answer.includes("No relevantWiki");
+			const isNoRecord = answer.includes("No relevant records") || answer.includes("No relevant") || answer.includes("知识库中没有相关记录");
 			if (!isNoRecord) {
 				// Append "Save to Wiki" button for this response
 				const saveBtn = actionsDiv.createEl("button", {
