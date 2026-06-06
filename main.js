@@ -1381,7 +1381,6 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
   }
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   display() {
     const { containerEl } = this;
     containerEl.empty();

@@ -75,7 +75,7 @@ export default class GenWikiPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) || {});
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData() as Partial<GenWikiSettings>) || {});
 	}
 
 	async saveSettings() {
@@ -133,7 +133,6 @@ export default class GenWikiPlugin extends Plugin {
 			const normalized = normalizePath(folder);
 			const exists = this.app.vault.getAbstractFileByPath(normalized);
 			if (!exists) {
-				// eslint-disable-next-line obsidianmd/no-unsupported-api
 				await this.app.vault.createFolder(normalized);
 			}
 		}
@@ -373,7 +372,6 @@ export default class GenWikiPlugin extends Plugin {
 					if (parts.length > 1) {
 						const parentDir = parts.slice(0, parts.length - 1).join("/");
 						if (!this.app.vault.getAbstractFileByPath(normalizePath(parentDir))) {
-							// eslint-disable-next-line obsidianmd/no-unsupported-api
 							await this.app.vault.createFolder(normalizePath(parentDir));
 						}
 					}
@@ -757,7 +755,6 @@ class GenWikiSettingTab extends PluginSettingTab {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-deprecated
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
