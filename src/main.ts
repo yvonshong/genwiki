@@ -27,7 +27,7 @@ export default class GenWikiPlugin extends Plugin {
 
 		// Add ribbon icon for GenWiki Chat Panel (only ONE ribbon button)
 		this.addRibbonIcon("cpu", "GenWiki: Open Chat Panel", () => {
-			this.activateView();
+			void this.activateView();
 		});
 
 		// Register commands
@@ -75,7 +75,7 @@ export default class GenWikiPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) || {});
 	}
 
 	async saveSettings() {
@@ -96,7 +96,7 @@ export default class GenWikiPlugin extends Plugin {
 			}
 		}
 		if (leaf) {
-			workspace.revealLeaf(leaf);
+			workspace.setActiveLeaf(leaf, { focus: true });
 		}
 	}
 
@@ -133,6 +133,7 @@ export default class GenWikiPlugin extends Plugin {
 			const normalized = normalizePath(folder);
 			const exists = this.app.vault.getAbstractFileByPath(normalized);
 			if (!exists) {
+				// eslint-disable-next-line obsidianmd/no-unsupported-api
 				await this.app.vault.createFolder(normalized);
 			}
 		}
@@ -372,6 +373,7 @@ export default class GenWikiPlugin extends Plugin {
 					if (parts.length > 1) {
 						const parentDir = parts.slice(0, parts.length - 1).join("/");
 						if (!this.app.vault.getAbstractFileByPath(normalizePath(parentDir))) {
+							// eslint-disable-next-line obsidianmd/no-unsupported-api
 							await this.app.vault.createFolder(normalizePath(parentDir));
 						}
 					}
@@ -401,9 +403,9 @@ export default class GenWikiPlugin extends Plugin {
 
 				const idxAliasesRaw = idxUpdate["aliases"];
 				const idxAliases = Array.isArray(idxAliasesRaw) ? idxAliasesRaw.map(a => String(a)) : existingPage?.aliases || [];
-				const idxTypeRaw = typeof idxUpdate["type"] === "string" ? idxUpdate["type"] as string : existingPage?.type;
+				const idxTypeRaw = typeof idxUpdate["type"] === "string" ? idxUpdate["type"] : existingPage?.type;
 				const idxType = idxTypeRaw === "concept" || idxTypeRaw === "entity" || idxTypeRaw === "general" ? idxTypeRaw : "general";
-				const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] as string : existingPage?.summary || "Auto-generated information entry.";
+				const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] : existingPage?.summary || "Auto-generated information entry.";
 
 				db.wiki_pages[destPath] = {
 					path: destPath,
@@ -608,7 +610,7 @@ export default class GenWikiPlugin extends Plugin {
 				const c = cRaw as Record<string, unknown>;
 				const filesRaw = c["files"];
 				const filesArr = Array.isArray(filesRaw) ? filesRaw.map(f => String(f)) : [];
-				const desc = typeof c["description"] === "string" ? c["description"] as string : "";
+				const desc = typeof c["description"] === "string" ? c["description"] : "";
 				reportContent += `* **Files involved**: ${filesArr.map((f: string) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}\n  * **Conflict description**: ${desc}\n`;
 			}
 		} else {
@@ -673,8 +675,9 @@ class QueryModal extends Modal {
 			const submitBtn = contentEl.createEl("button", { text: "Submit Question" });
 			const resultContainer = contentEl.createDiv({ cls: "genwiki-query-result" });
 
-		submitBtn.addEventListener("click", async () => {
-			const query = inputEl.value.trim();
+		submitBtn.addEventListener("click", () => {
+			void (async () => {
+				const query = inputEl.value.trim();
 			if (!query) return;
 
 			resultContainer.setText("Analyzing and searching, please wait...");
@@ -692,6 +695,7 @@ class QueryModal extends Modal {
 			} finally {
 				submitBtn.disabled = false;
 			}
+			})();
 		});
 	}
 
@@ -753,11 +757,12 @@ class GenWikiSettingTab extends PluginSettingTab {
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-deprecated
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 
-			new Setting(containerEl).setName("Model Settings").setHeading();
+			new Setting(containerEl).setName("Model Configuration").setHeading();
 
 		new Setting(containerEl)
 			.setName("Default Model Provider")

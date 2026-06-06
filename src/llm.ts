@@ -73,7 +73,7 @@ export class LLMClient {
 		};
 
 		if (systemPrompt) {
-			(body as Record<string, unknown>).systemInstruction = {
+			body.systemInstruction = {
 				parts: [{ text: systemPrompt }]
 			};
 		}
@@ -114,7 +114,7 @@ export class LLMClient {
 		};
 
 		if (systemPrompt) {
-			(body as Record<string, unknown>).system = systemPrompt;
+			body.system = systemPrompt;
 		}
 
 		const params: RequestUrlParam = {
@@ -172,7 +172,7 @@ export class LLMClient {
 				messages: [{ role: "user", content: prompt }]
 			};
 			if (systemPrompt) {
-				(body as Record<string, unknown>).system = systemPrompt;
+				body.system = systemPrompt;
 			}
 			const params: RequestUrlParam = {
 				url: url,

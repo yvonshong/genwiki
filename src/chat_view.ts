@@ -142,7 +142,7 @@ export class GenWikiChatView extends ItemView {
 				text: "📋 Copy"
 			});
 			copyBtn.addEventListener("click", () => {
-				navigator.clipboard.writeText(answer);
+				void navigator.clipboard.writeText(answer);
 				new Notice("Copied to clipboard!");
 			});
 
@@ -233,11 +233,11 @@ export class GenWikiChatView extends ItemView {
 		}
 
 		// 5. Build Frontmatter and Write Markdown File
-		const fm = frontmatter || {} as Record<string, unknown>;
+		const fm = frontmatter || {};
 		const aliasesRaw = fm["aliases"];
 		const aliasesArr = Array.isArray(aliasesRaw) ? aliasesRaw.map(a => String(a)) : [];
 		const aliasesStr = aliasesArr.length > 0 ? JSON.stringify(aliasesArr) : "[]";
-		const summaryStr = typeof fm["summary"] === "string" ? fm["summary"] as string : "";
+		const summaryStr = typeof fm["summary"] === "string" ? fm["summary"] : "";
 
 		const fullContent = `---
 	aliases: ${aliasesStr}

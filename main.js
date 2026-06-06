@@ -594,7 +594,7 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
         text: "\u{1F4CB} Copy"
       });
       copyBtn.addEventListener("click", () => {
-        navigator.clipboard.writeText(answer);
+        void navigator.clipboard.writeText(answer);
         new import_obsidian2.Notice("Copied to clipboard!");
       });
       const isNoRecord = answer.includes("No relevant records") || answer.includes("No relevant") || answer.includes("No relevantWiki");
@@ -746,7 +746,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
     await this.initDefaultTemplates();
     this.addSettingTab(new GenWikiSettingTab(this.app, this));
     this.addRibbonIcon("cpu", "GenWiki: Open Chat Panel", () => {
-      this.activateView();
+      void this.activateView();
     });
     this.addCommand({
       id: "ingest-clippings",
@@ -788,7 +788,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
     });
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() || {});
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -807,7 +807,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
       }
     }
     if (leaf) {
-      workspace.revealLeaf(leaf);
+      workspace.setActiveLeaf(leaf, { focus: true });
     }
   }
   // Helper to calculate SHA256 in a pure client environment, with mobile fallback
@@ -1324,23 +1324,25 @@ var QueryModal = class extends import_obsidian3.Modal {
     inputEl.addClass("genwiki-query-input");
     const submitBtn = contentEl.createEl("button", { text: "Submit Question" });
     const resultContainer = contentEl.createDiv({ cls: "genwiki-query-result" });
-    submitBtn.addEventListener("click", async () => {
-      const query = inputEl.value.trim();
-      if (!query)
-        return;
-      resultContainer.setText("Analyzing and searching, please wait...");
-      submitBtn.disabled = true;
-      try {
-        const ans = await this.plugin.executeQuery(query);
-        resultContainer.empty();
-        const preEl = resultContainer.createEl("pre", { cls: "genwiki-query-pre" });
-        preEl.setText(ans);
-      } catch (e) {
-        resultContainer.setText(`Query Error: ${e.message}`);
-        console.error(e);
-      } finally {
-        submitBtn.disabled = false;
-      }
+    submitBtn.addEventListener("click", () => {
+      void (async () => {
+        const query = inputEl.value.trim();
+        if (!query)
+          return;
+        resultContainer.setText("Analyzing and searching, please wait...");
+        submitBtn.disabled = true;
+        try {
+          const ans = await this.plugin.executeQuery(query);
+          resultContainer.empty();
+          const preEl = resultContainer.createEl("pre", { cls: "genwiki-query-pre" });
+          preEl.setText(ans);
+        } catch (e) {
+          resultContainer.setText(`Query Error: ${e.message}`);
+          console.error(e);
+        } finally {
+          submitBtn.disabled = false;
+        }
+      })();
     });
   }
   onClose() {
@@ -1379,10 +1381,11 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
   }
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian3.Setting(containerEl).setName("Model Settings").setHeading();
+    new import_obsidian3.Setting(containerEl).setName("Model Configuration").setHeading();
     new import_obsidian3.Setting(containerEl).setName("Default Model Provider").setDesc("Select the model provider to use").addDropdown((dropdown) => dropdown.addOption("gemini", "Google Gemini").addOption("anthropic", "Anthropic Claude").addOption("openai", "OpenAI").addOption("deepseek", "DeepSeek").addOption("kimi", "Moonshot Kimi").addOption("openrouter", "OpenRouter").setValue(this.plugin.settings.provider).onChange(async (value) => {
       this.plugin.settings.provider = value;
       await this.plugin.saveSettings();
