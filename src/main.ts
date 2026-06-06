@@ -510,10 +510,6 @@ export default class GenWikiPlugin extends Plugin {
 		const skillRaw = await this.app.vault.read(querySkillFile);
 		const skill = parseSkillMarkdown(skillRaw);
 
-		if (Object.keys(db.wiki_pages).length === 0) {
-			return "No relevant records in the knowledge base, please import new clippings.";
-		}
-
 		// Simple search algorithm: Find files from index.json matching keywords
 		// Strip common punctuation to improve keyword matching
 		const cleanQuestion = question.replace(/[?？!！,，.。]/g, " ");
@@ -541,9 +537,33 @@ export default class GenWikiPlugin extends Plugin {
 			}
 		}
 
-		// If no matches, fall back to reading top 5 pages
-		const pagesToRead = matchingPages.length > 0 ? matchingPages.slice(0, 5) : Object.values(db.wiki_pages).slice(0, 5);
+		// Full-text search fallback if metadata search fails
+		if (matchingPages.length === 0) {
+			for (const page of Object.values(db.wiki_pages)) {
+				const file = this.app.vault.getAbstractFileByPath(page.path);
+				if (file instanceof TFile) {
+					const content = await this.app.vault.read(file);
+					const contentLower = content.toLowerCase();
+					// Need at least one keyword to match in the body (length >= 2 to avoid single char noise)
+					const matches = keywords.some(kw => contentLower.includes(kw) && kw.length >= 2);
+					if (matches) {
+						matchingPages.push(page);
+					}
+				}
+			}
+		}
+
+		// If no matches even after full-text search, return early to save LLM tokens
+		if (matchingPages.length === 0) {
+			return "No relevant records in the knowledge base, please import new clippings.";
+		}
+
+		// Take top 5 matched pages
+		const pagesToRead = matchingPages.slice(0, 5);
 		let combinedContents = "";
+
+		// DEBUG LOGGING
+		let debugInfo = `\n## Query at ${new Date().toISOString()}\n**Question**: ${question}\n**Keywords**: ${JSON.stringify(keywords)}\n**Matched Pages**: ${matchingPages.map(p => p.title).join(", ")}\n`;
 
 		for (const p of pagesToRead) {
 			const file = this.app.vault.getAbstractFileByPath(p.path);
@@ -555,6 +575,22 @@ export default class GenWikiPlugin extends Plugin {
 
 		if (!combinedContents.trim()) {
 			combinedContents = "(No relevant Wiki knowledge content, please ingest clippings first)";
+		}
+
+		debugInfo += `**Passed to LLM (Top 5 or matched)**:\n${pagesToRead.map(p => p.title).join(", ")}\n`;
+		
+		try {
+			const debugLogPath = normalizePath(`${this.settings.wikiDir}/debug_log.md`);
+			let logContent = "";
+			const logFile = this.app.vault.getAbstractFileByPath(debugLogPath);
+			if (logFile instanceof TFile) {
+				logContent = await this.app.vault.read(logFile);
+				await this.app.vault.modify(logFile, logContent + debugInfo);
+			} else {
+				await this.app.vault.create(debugLogPath, debugInfo);
+			}
+		} catch (e) {
+			console.error("Failed to write debug log", e);
 		}
 
 		// Fill prompt
