@@ -100,6 +100,16 @@ var LLMClient = class {
         throw new Error(`Unsupported LLM provider: ${provider}`);
     }
   }
+  async embed(text) {
+    const provider = this.settings.provider;
+    if (provider === "gemini") {
+      return this.embedGemini(text);
+    } else if (provider === "openai") {
+      return this.embedOpenAI(text);
+    } else {
+      throw new Error(`Embedding is currently only supported for 'gemini' and 'openai' providers. Your provider is ${provider}. Please switch to Gemini/OpenAI or continue using keyword search.`);
+    }
+  }
   cleanUrl(baseUrl, path) {
     const cleanBase = baseUrl.trim().replace(/\/+$/, "");
     const cleanPath = path.trim().replace(/^\/+/, "");
@@ -197,6 +207,65 @@ var LLMClient = class {
       prompt,
       systemPrompt
     );
+  }
+  async embedGemini(text) {
+    const key = this.settings.geminiApiKey;
+    if (!key)
+      throw new Error("Gemini API key is not configured.");
+    const baseUrl = this.settings.geminiBaseUrl || "https://generativelanguage.googleapis.com";
+    const url = `${baseUrl.replace(/\/+$/, "")}/v1beta/models/text-embedding-004:embedContent?key=${key}`;
+    const body = {
+      model: "models/text-embedding-004",
+      content: { parts: [{ text }] }
+    };
+    const params = {
+      url,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    };
+    const response = await (0, import_obsidian.requestUrl)(params);
+    if (response.status !== 200) {
+      throw new Error(`Gemini Embedding Error (${response.status}): ${response.text}`);
+    }
+    const json = response.json;
+    const values = json?.embedding?.values;
+    if (!Array.isArray(values)) {
+      throw new Error("Invalid embedding response from Gemini API.");
+    }
+    return values;
+  }
+  async embedOpenAI(text) {
+    const key = this.settings.openaiApiKey;
+    if (!key)
+      throw new Error("OpenAI API key is not configured.");
+    const baseUrl = this.settings.openaiBaseUrl || "https://api.openai.com/v1";
+    const url = this.cleanUrl(baseUrl, "embeddings");
+    const body = {
+      model: "text-embedding-3-small",
+      input: text
+    };
+    const params = {
+      url,
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    };
+    const response = await (0, import_obsidian.requestUrl)(params);
+    if (response.status !== 200) {
+      throw new Error(`OpenAI Embedding Error (${response.status}): ${response.text}`);
+    }
+    const json = response.json;
+    const values = json?.data?.[0]?.embedding;
+    if (!Array.isArray(values)) {
+      throw new Error("Invalid embedding response from OpenAI API.");
+    }
+    return values;
   }
   async completeDeepSeek(prompt, systemPrompt) {
     const key = this.settings.deepseekApiKey;
@@ -597,7 +666,7 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
         void navigator.clipboard.writeText(answer);
         new import_obsidian2.Notice("Copied to clipboard!");
       });
-      const isNoRecord = answer.includes("No relevant records") || answer.includes("No relevant") || answer.includes("No relevantWiki");
+      const isNoRecord = answer.includes("No relevant records") || answer.includes("No relevant") || answer.includes("\u77E5\u8BC6\u5E93\u4E2D\u6CA1\u6709\u76F8\u5173\u8BB0\u5F55");
       if (!isNoRecord) {
         const saveBtn = actionsDiv.createEl("button", {
           cls: "genwiki-save-btn mod-cta",
@@ -734,6 +803,20 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
 };
 
 // src/main.ts
+function cosineSimilarity(vecA, vecB) {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  const len = Math.min(vecA.length, vecB.length);
+  for (let i = 0; i < len; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0)
+    return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
 var GenWikiPlugin = class extends import_obsidian3.Plugin {
   async onload() {
     await this.loadSettings();
@@ -759,6 +842,13 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
           new import_obsidian3.Notice(`Ingest failed: ${e.message}`);
           console.error(e);
         }
+      }
+    });
+    this.addCommand({
+      id: "genwiki-rebuild-embeddings",
+      name: "Rebuild Embeddings Index",
+      callback: () => {
+        void this.rebuildEmbeddings();
       }
     });
     this.addCommand({
@@ -810,7 +900,6 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
       workspace.setActiveLeaf(leaf, { focus: true });
     }
   }
-  // Helper to calculate SHA256 in a pure client environment, with mobile fallback
   async calculateHash(text) {
     if (typeof crypto !== "undefined" && crypto.subtle) {
       const msgBuffer = new TextEncoder().encode(text);
@@ -900,6 +989,32 @@ Records every knowledge organization and query action.`);
       wiki_pages: {}
     };
   }
+  async rebuildEmbeddings() {
+    const db = await this.loadDatabase();
+    const pages = Object.values(db.wiki_pages);
+    let count = 0;
+    new import_obsidian3.Notice(`Starting embedding generation for ${pages.length} pages...`);
+    for (const page of pages) {
+      if (!page.embedding || page.embedding.length === 0) {
+        const file = this.app.vault.getAbstractFileByPath(page.path);
+        if (file instanceof import_obsidian3.TFile) {
+          try {
+            const content = await this.app.vault.read(file);
+            page.embedding = await this.llmClient.embed(content);
+            count++;
+          } catch (e) {
+            console.error(`Failed to embed ${page.path}`, e);
+          }
+        }
+      }
+    }
+    if (count > 0) {
+      await this.saveDatabase(db);
+      new import_obsidian3.Notice(`Successfully generated embeddings for ${count} pages!`);
+    } else {
+      new import_obsidian3.Notice(`All pages already have embeddings. Nothing to do.`);
+    }
+  }
   async saveDatabase(db) {
     const dbPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/_database/index.json`);
     const file = this.app.vault.getAbstractFileByPath(dbPath);
@@ -921,7 +1036,6 @@ Records every knowledge organization and query action.`);
       await this.app.vault.append(file, entry);
     }
   }
-  // Extract outgoing double links from text
   extractLinks(text) {
     const links = [];
     const regex = /\[\[(.*?)\]\]/g;
@@ -941,7 +1055,6 @@ Records every knowledge organization and query action.`);
     }
     return links;
   }
-  // Regenerate the main index.md file based on database contents
   async rebuildIndexMd(db) {
     const indexPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/index.md`);
     const file = this.app.vault.getAbstractFileByPath(indexPath);
@@ -976,7 +1089,6 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
     }
     await this.app.vault.modify(file, content);
   }
-  // P1: Ingest Process
   async runIngest() {
     const clippingsFolder = this.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(this.settings.clippingsDir));
     if (!(clippingsFolder instanceof import_obsidian3.TFolder)) {
@@ -985,14 +1097,25 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
     const db = await this.loadDatabase();
     const files = clippingsFolder.children;
     const mdFiles = files.filter((f) => f instanceof import_obsidian3.TFile && f.extension === "md");
-    let processedAny = false;
-    for (const mdFile of mdFiles) {
+    const pendingFiles = mdFiles.filter((mdFile) => {
       const relativePath = mdFile.path;
       if (relativePath.includes("/Archived/"))
-        continue;
+        return false;
       const clippingMeta = db.clippings[relativePath];
       if (clippingMeta && clippingMeta.status === "processed")
-        continue;
+        return false;
+      return true;
+    });
+    if (pendingFiles.length === 0) {
+      new import_obsidian3.Notice("No new clippings to process.");
+      return;
+    }
+    let processedAny = false;
+    let processedCount = 0;
+    const totalPending = pendingFiles.length;
+    for (const mdFile of pendingFiles) {
+      processedCount++;
+      const relativePath = mdFile.path;
       const content = await this.app.vault.read(mdFile);
       const hash = await this.calculateHash(content);
       const indexFile = this.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/index.md`));
@@ -1007,8 +1130,23 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
         index_content: indexContent,
         clipping_content: content
       });
-      new import_obsidian3.Notice(`Analyzing with AI: ${mdFile.name}...`);
-      const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
+      new import_obsidian3.Notice(`[${processedCount}/${totalPending}] Analyzing with AI: ${mdFile.name}...`);
+      let response;
+      try {
+        response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
+      } catch (e) {
+        console.error(`Failed to analyze ${mdFile.name}`, e);
+        new import_obsidian3.Notice(`[${processedCount}/${totalPending}] Error analyzing ${mdFile.name}: ${e.message}`);
+        db.clippings[relativePath] = {
+          path: relativePath,
+          sha256: hash,
+          ingest_date: (/* @__PURE__ */ new Date()).toISOString(),
+          status: "failed",
+          destinations: []
+        };
+        await this.saveDatabase(db);
+        continue;
+      }
       const cleanResponse = LLMClient.cleanJsonString(response);
       let resultParsed;
       try {
@@ -1054,6 +1192,11 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
         const destPath = (0, import_obsidian3.normalizePath)(opPath);
         destinations.push(destPath);
         const opFile = this.app.vault.getAbstractFileByPath(destPath);
+        const linksTo = this.extractLinks(opContent || "");
+        const generatedLinks = linksTo.map((l) => `[[${l.split("/").pop()?.replace(".md", "")}]]`).join(" ");
+        const finalContent = `${opContent || ""}
+
+${generatedLinks}`;
         if (action === "create" || !opFile) {
           const parts = destPath.split("/");
           if (parts.length > 1) {
@@ -1062,13 +1205,11 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
               await this.app.vault.createFolder((0, import_obsidian3.normalizePath)(parentDir));
             }
           }
-          await this.app.vault.create(destPath, opContent || "");
+          await this.app.vault.create(destPath, finalContent);
         } else if (opFile instanceof import_obsidian3.TFile) {
-          await this.app.vault.modify(opFile, opContent || "");
+          await this.app.vault.modify(opFile, finalContent);
         }
-        const fileContent = opContent || "";
-        const fileHash = await this.calculateHash(fileContent);
-        const linksTo = this.extractLinks(fileContent);
+        const fileHash = await this.calculateHash(finalContent);
         const indexUpdates = Array.isArray(result.index_updates) ? result.index_updates : [];
         const idxUpdateRaw = indexUpdates.find((iu) => typeof iu === "object" && iu !== null && iu.path === opPath);
         const idxUpdate = typeof idxUpdateRaw === "object" && idxUpdateRaw !== null ? idxUpdateRaw : {};
@@ -1085,7 +1226,7 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
         const idxTypeRaw = typeof idxUpdate["type"] === "string" ? idxUpdate["type"] : existingPage?.type;
         const idxType = idxTypeRaw === "concept" || idxTypeRaw === "entity" || idxTypeRaw === "general" ? idxTypeRaw : "general";
         const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] : existingPage?.summary || "Auto-generated information entry.";
-        db.wiki_pages[destPath] = {
+        const pageMeta = {
           path: destPath,
           title: opTitle || (opFile instanceof import_obsidian3.TFile ? opFile.name.replace(".md", "") : "Untitled"),
           aliases: idxAliases,
@@ -1096,19 +1237,19 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
           sha256: fileHash,
           links_to: linksTo,
           links_from: existingPage?.links_from || [],
-          claims: [
-            {
-              clipping_path: relativePath,
-              line_range: "all",
-              paragraph_summary: idxSummary || "Summary from clippings"
-            }
-          ],
+          claims: [{ clipping_path: relativePath, line_range: "all", paragraph_summary: idxSummary || "Summary from clippings" }],
           audit: {
             created_at: existingPage?.audit.created_at || (/* @__PURE__ */ new Date()).toISOString(),
             last_compiled_cost_usd: 0.01,
             history: auditHistory
           }
         };
+        try {
+          pageMeta.embedding = await this.llmClient.embed(finalContent);
+        } catch (e) {
+          console.error("Failed to generate embedding for page:", destPath, e);
+        }
+        db.wiki_pages[destPath] = pageMeta;
       }
       for (const pagePath of destinations) {
         const page = db.wiki_pages[pagePath];
@@ -1141,7 +1282,6 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
       new import_obsidian3.Notice("No unprocessed clippings found!");
     }
   }
-  // P1: Query core execution
   async executeQuery(question) {
     const db = await this.loadDatabase();
     const querySkillFile = this.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/_skills/Query.md`));
@@ -1150,18 +1290,64 @@ This page is auto-updated by GenWiki, showing an index graph of all archived kno
     }
     const skillRaw = await this.app.vault.read(querySkillFile);
     const skill = parseSkillMarkdown(skillRaw);
-    const keywords = question.toLowerCase().split(/\s+/);
-    const matchingPages = [];
-    for (const page of Object.values(db.wiki_pages)) {
-      const matches = keywords.some(
-        (kw) => page.title.toLowerCase().includes(kw) || page.summary.toLowerCase().includes(kw) || page.aliases.some((alias) => alias.toLowerCase().includes(kw))
-      );
-      if (matches) {
-        matchingPages.push(page);
+    const extractKeywords = (str) => {
+      let cleaned = str.toLowerCase();
+      const stopWords = ["what", "is", "the", "a", "an", "how", "why", "\u662F", "\u4EC0\u4E48", "\u600E\u4E48", "\u600E\u4E48\u6837", "\u4E3A\u4EC0\u4E48", "\u7684", "\u4E86", "\u5462", "\u8BF7\u95EE", "\u5173\u4E8E"];
+      for (const word of stopWords) {
+        if (/^[a-z]+$/.test(word)) {
+          cleaned = cleaned.replace(new RegExp(`\\b${word}\\b`, "g"), " ");
+        } else {
+          cleaned = cleaned.replace(new RegExp(word, "g"), " ");
+        }
+      }
+      const tokens = cleaned.split(/[\s,，.。?？!！"“”'‘’]+/);
+      return tokens.filter((t) => t.trim().length > 0);
+    };
+    const keywords = extractKeywords(question);
+    let matchingPages = [];
+    let usedSemanticSearch = false;
+    try {
+      const questionEmbedding = await this.llmClient.embed(question);
+      const scoredPages = [];
+      for (const page of Object.values(db.wiki_pages)) {
+        if (page.embedding && page.embedding.length > 0) {
+          const score = cosineSimilarity(questionEmbedding, page.embedding);
+          scoredPages.push({ page, score });
+        }
+      }
+      if (scoredPages.length > 0) {
+        scoredPages.sort((a, b) => b.score - a.score);
+        matchingPages = scoredPages.filter((p) => p.score > 0.7).map((p) => p.page);
+        if (matchingPages.length === 0)
+          matchingPages = scoredPages.slice(0, 3).map((p) => p.page);
+        usedSemanticSearch = true;
+      }
+    } catch (e) {
+      console.log("Embedding search failed, falling back to keyword search:", e);
+    }
+    if (!usedSemanticSearch || matchingPages.length === 0) {
+      for (const page of Object.values(db.wiki_pages)) {
+        const pageTitle = page.title.toLowerCase();
+        const matches = keywords.some((kw) => {
+          if (pageTitle.includes(kw) || page.summary.toLowerCase().includes(kw) || page.aliases.some((a) => a.toLowerCase().includes(kw)))
+            return true;
+          return false;
+        });
+        if (matches)
+          matchingPages.push(page);
       }
     }
-    const pagesToRead = matchingPages.length > 0 ? matchingPages.slice(0, 5) : Object.values(db.wiki_pages).slice(0, 5);
+    if (matchingPages.length === 0)
+      return "No relevant records in the knowledge base.";
+    const pagesToRead = matchingPages.slice(0, 5);
     let combinedContents = "";
+    const searchMethod = usedSemanticSearch ? "Semantic (Cosine Similarity)" : "Keyword/Full-text";
+    let debugInfo = `
+## Query at ${(/* @__PURE__ */ new Date()).toISOString()}
+**Question**: ${question}
+**Search Method**: ${searchMethod}
+**Passed to LLM**: ${pagesToRead.map((p) => p.title).join(", ")}
+`;
     for (const p of pagesToRead) {
       const file = this.app.vault.getAbstractFileByPath(p.path);
       if (file instanceof import_obsidian3.TFile) {
@@ -1174,6 +1360,22 @@ ${content}
     }
     if (!combinedContents.trim()) {
       combinedContents = "(No relevant Wiki knowledge content, please ingest clippings first)";
+    }
+    debugInfo += `**Passed to LLM (Top 5 or matched)**:
+${pagesToRead.map((p) => p.title).join(", ")}
+`;
+    try {
+      const debugLogPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/debug_log.md`);
+      let logContent = "";
+      const logFile = this.app.vault.getAbstractFileByPath(debugLogPath);
+      if (logFile instanceof import_obsidian3.TFile) {
+        logContent = await this.app.vault.read(logFile);
+        await this.app.vault.modify(logFile, logContent + debugInfo);
+      } else {
+        await this.app.vault.create(debugLogPath, debugInfo);
+      }
+    } catch (e) {
+      console.error("Failed to write debug log", e);
     }
     const userPrompt = fillTemplate(skill.userPromptTemplate, {
       user_question: question,
@@ -1392,10 +1594,13 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
     }));
     const prov = this.plugin.settings.provider;
     if (prov === "gemini") {
-      new import_obsidian3.Setting(containerEl).setName("Gemini API Key").addText((text) => text.setPlaceholder("Enter Gemini API Key").setValue(this.plugin.settings.geminiApiKey).onChange(async (value) => {
-        this.plugin.settings.geminiApiKey = value;
-        await this.plugin.saveSettings();
-      }));
+      new import_obsidian3.Setting(containerEl).setName("Gemini API Key").addText((text) => {
+        text.inputEl.type = "password";
+        text.setPlaceholder("Enter Gemini API Key").setValue(this.plugin.settings.geminiApiKey).onChange(async (value) => {
+          this.plugin.settings.geminiApiKey = value;
+          await this.plugin.saveSettings();
+        });
+      });
       this.addModelSetting(
         containerEl,
         "Gemini",
@@ -1416,10 +1621,13 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
     if (prov === "anthropic") {
-      new import_obsidian3.Setting(containerEl).setName("Anthropic API Key").addText((text) => text.setPlaceholder("Enter Anthropic API Key").setValue(this.plugin.settings.anthropicApiKey).onChange(async (value) => {
-        this.plugin.settings.anthropicApiKey = value;
-        await this.plugin.saveSettings();
-      }));
+      new import_obsidian3.Setting(containerEl).setName("Anthropic API Key").addText((text) => {
+        text.inputEl.type = "password";
+        text.setPlaceholder("Enter Anthropic API Key").setValue(this.plugin.settings.anthropicApiKey).onChange(async (value) => {
+          this.plugin.settings.anthropicApiKey = value;
+          await this.plugin.saveSettings();
+        });
+      });
       this.addModelSetting(
         containerEl,
         "Anthropic",
@@ -1437,10 +1645,13 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
     if (prov === "openai") {
-      new import_obsidian3.Setting(containerEl).setName("OpenAI API Key").addText((text) => text.setPlaceholder("Enter OpenAI API Key").setValue(this.plugin.settings.openaiApiKey).onChange(async (value) => {
-        this.plugin.settings.openaiApiKey = value;
-        await this.plugin.saveSettings();
-      }));
+      new import_obsidian3.Setting(containerEl).setName("OpenAI API Key").addText((text) => {
+        text.inputEl.type = "password";
+        text.setPlaceholder("Enter OpenAI API Key").setValue(this.plugin.settings.openaiApiKey).onChange(async (value) => {
+          this.plugin.settings.openaiApiKey = value;
+          await this.plugin.saveSettings();
+        });
+      });
       this.addModelSetting(
         containerEl,
         "OpenAI",
@@ -1460,10 +1671,13 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
     if (prov === "deepseek") {
-      new import_obsidian3.Setting(containerEl).setName("DeepSeek API Key").addText((text) => text.setPlaceholder("Enter DeepSeek API Key").setValue(this.plugin.settings.deepseekApiKey).onChange(async (value) => {
-        this.plugin.settings.deepseekApiKey = value;
-        await this.plugin.saveSettings();
-      }));
+      new import_obsidian3.Setting(containerEl).setName("DeepSeek API Key").addText((text) => {
+        text.inputEl.type = "password";
+        text.setPlaceholder("Enter DeepSeek API Key").setValue(this.plugin.settings.deepseekApiKey).onChange(async (value) => {
+          this.plugin.settings.deepseekApiKey = value;
+          await this.plugin.saveSettings();
+        });
+      });
       this.addModelSetting(
         containerEl,
         "DeepSeek",
@@ -1481,10 +1695,13 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
     if (prov === "kimi") {
-      new import_obsidian3.Setting(containerEl).setName("Kimi API Key").addText((text) => text.setPlaceholder("Enter Moonshot API Key").setValue(this.plugin.settings.kimiApiKey).onChange(async (value) => {
-        this.plugin.settings.kimiApiKey = value;
-        await this.plugin.saveSettings();
-      }));
+      new import_obsidian3.Setting(containerEl).setName("Kimi API Key").addText((text) => {
+        text.inputEl.type = "password";
+        text.setPlaceholder("Enter Moonshot API Key").setValue(this.plugin.settings.kimiApiKey).onChange(async (value) => {
+          this.plugin.settings.kimiApiKey = value;
+          await this.plugin.saveSettings();
+        });
+      });
       this.addModelSetting(
         containerEl,
         "Kimi",
@@ -1506,10 +1723,13 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
     if (prov === "openrouter") {
-      new import_obsidian3.Setting(containerEl).setName("OpenRouter API Key").addText((text) => text.setPlaceholder("Enter OpenRouter API Key").setValue(this.plugin.settings.openrouterApiKey).onChange(async (value) => {
-        this.plugin.settings.openrouterApiKey = value;
-        await this.plugin.saveSettings();
-      }));
+      new import_obsidian3.Setting(containerEl).setName("OpenRouter API Key").addText((text) => {
+        text.inputEl.type = "password";
+        text.setPlaceholder("Enter OpenRouter API Key").setValue(this.plugin.settings.openrouterApiKey).onChange(async (value) => {
+          this.plugin.settings.openrouterApiKey = value;
+          await this.plugin.saveSettings();
+        });
+      });
       this.addModelSetting(
         containerEl,
         "OpenRouter",
