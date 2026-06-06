@@ -87,7 +87,7 @@ Open Obsidian Settings and navigate to **GenWiki** under Community Plugins.
    * **OpenRouter** (Default: `openrouter/free`, handles unified model endpoints)
 2. **Model Selection**: 
    * Select a recommended model from the dropdown.
-   * If you wish to use a custom or newly-released model, choose **自定义 (Custom)**, and enter the exact Model ID in the text field that appears.
+   * If you wish to use a custom or newly-released model, choose **Custom**, and enter the exact Model ID in the text field that appears.
 3. **Paths**: Customize the source directory for raw clippings (default: `Clippings`) and the destination Wiki folder (default: `wiki`).
 
 ---
@@ -96,8 +96,8 @@ Open Obsidian Settings and navigate to **GenWiki** under Community Plugins.
 
 1. **Setup**: Make sure your API key is configured. On the first startup, GenWiki automatically sets up the folder structure and default Skill templates in your vault.
 2. **Start Chatting**: Click the **CPU icon** on the left ribbon to pop open the **GenWiki Chat Panel** on the right side.
-3. **Ingest Clippings**: Drop raw Markdown clippings into your `Clippings/` folder, open the Chat Panel, and click **📥 开始处理剪藏** at the top. The plugin will automatically parse, links, and index them.
-4. **Solidify Chat**: Ask questions in the Chat Panel. If the assistant provides a detailed answer you want to keep, click **💾 保存为 Wiki 页面** beneath the answer to compile it into your permanent knowledge wiki.
+3. **Ingest Clippings**: Drop raw Markdown clippings into your `Clippings/` folder, open the Chat Panel, and click **📥 Process Clippings** at the top. The plugin will automatically parse, link, and index them.
+4. **Solidify Chat**: Ask questions in the Chat Panel. If the assistant provides a detailed answer you want to keep, click **💾 Save as Wiki Page** beneath the answer to compile it into your permanent knowledge wiki.
 
 ---
 
