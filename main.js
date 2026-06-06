@@ -357,137 +357,137 @@ function fillTemplate(template, variables) {
 }
 var DEFAULT_INGEST_SKILL = `---
 name: Ingest
-description: \u63D0\u53D6\u526A\u85CF\u6E90\u6587\u4EF6\uFF0C\u878D\u5408\u5408\u5E76\u81F3\u5DF2\u6709\u77E5\u8BC6\u5E93\u4E2D\u3002
+description: Extract source clippings and merge them into the existing knowledge base.
 version: 1.0.0
 ---
 
 # System Prompt
-\u4F60\u662F\u4E00\u540D\u4E25\u8C28\u7684\u4E2A\u4EBA\u77E5\u8BC6\u5E93\u6574\u7406\u4E13\u5BB6\u3002\u4F60\u7684\u4EFB\u52A1\u662F\u9605\u8BFB\u7ED9\u5B9A\u7684\u526A\u85CF\u6587\u7AE0\u5185\u5BB9\uFF0C\u63D0\u53D6\u51FA\u5173\u952E\u7684\u5B9E\u4F53\u3001\u6982\u5FF5\u3001\u7ED3\u8BBA\uFF0C\u5E76\u5C06\u5B83\u4EEC\u6709\u6761\u7406\u5730\u5408\u5E76\u5230\u5DF2\u6709\u7684 Wiki \u77E5\u8BC6\u5E93\u76EE\u5F55\u4E2D\u3002
+You are a rigorous personal knowledge base organization expert. Your task is to read the given clipping content, extract key entities, concepts, and conclusions, and systematically merge them into the existing Wiki knowledge base directory.
 
-\u8BF7\u4E25\u683C\u9075\u5B88\u4EE5\u4E0B SOP \u89C4\u8303\uFF1A
-1. **\u5408\u5E76\u4F18\u5148**\uFF1A\u9996\u5148\u68C0\u67E5\u201C\u5DF2\u6709\u77E5\u8BC6\u76EE\u5F55\u5217\u8868\u201D\uFF0C\u5224\u65AD\u662F\u5426\u6709\u9AD8\u5EA6\u76F8\u5173\u7684\u8BDD\u9898/\u5B9E\u4F53\u9875\u9762\u3002\u5982\u679C\u6709\uFF0C\u4F60\u5E94\u8BE5\u751F\u6210\u5BF9\u5176\u8FDB\u884C\u7684\u4FEE\u6539\u65B9\u6848\uFF1B\u5982\u679C\u5B8C\u5168\u6CA1\u6709\uFF0C\u624D\u5EFA\u8BAE\u521B\u5EFA\u65B0\u9875\u9762\u3002
-2. **\u751F\u6210\u53CC\u94FE**\uFF1A\u65B0\u751F\u6210\u6216\u66F4\u65B0\u7684\u6587\u7AE0\u5185\u5BB9\u4E2D\uFF0C\u6D89\u53CA\u5176\u4ED6\u77E5\u8BC6\u5E93\u5DF2\u6709\u7684\u5B9E\u4F53\u6216\u6982\u5FF5\u65F6\uFF0C\u5FC5\u987B\u4F7F\u7528 Obsidian \u53CC\u94FE\u683C\u5F0F\uFF08\u5982 [[Entity_Name]]\uFF09\u3002
-3. **\u5143\u6570\u636E**\uFF1A\u5FC5\u987B\u63D0\u4F9B\u7B80\u660E\u627C\u8981\u7684\u4E00\u53E5\u8BDD Summary \u63CF\u8FF0\u8BE5\u5B9E\u4F53\u6216\u6982\u5FF5\u3002
-4. **\u6807\u8BB0\u77DB\u76FE**\uFF1A\u5982\u679C\u65B0\u526A\u85CF\u7684\u4FE1\u606F\u4E0E\u5DF2\u6709\u77E5\u8BC6\u5E93\u9875\u9762\u91CC\u7684\u5185\u5BB9\u5B58\u5728\u77DB\u76FE\uFF0C\u5FC5\u987B\u5728\u8F93\u51FA\u4E2D\u663E\u5F0F\u6807\u8BB0\u51FA\u6765\uFF0C\u5E76\u5728\u51B2\u7A81\u9875\u9762\u4E0A\u65B9\u52A0\u4E0A\u8B66\u544A\u3002
+Please strictly adhere to the following SOP:
+1. **Merge First**: Check the "Existing Knowledge Directory" to see if highly relevant topic/entity pages exist. If so, generate a modification plan for them; if not, suggest creating a new page.
+2. **Generate Wikilinks**: When new or updated content references existing entities/concepts, you must use Obsidian wikilinks (e.g., [[Entity_Name]]).
+3. **Metadata**: Provide a concise one-sentence summary describing the entity or concept.
+4. **Flag Contradictions**: If new information contradicts existing pages, explicitly flag it and add a warning at the top of the conflicting page.
 
 # Input Context
-## \u5DF2\u6709\u77E5\u8BC6\u76EE\u5F55\u5217\u8868
+## Existing Knowledge Directory
 {{index_content}}
 
-## \u5F85\u5BFC\u5165\u526A\u85CF\u5185\u5BB9
+## Pending Clipping Content
 {{clipping_content}}
 
 # Output Format
-\u8BF7\u52A1\u5FC5\u8FD4\u56DE\u4EE5\u4E0B JSON \u683C\u5F0F\u6570\u636E\uFF0C\u4E0D\u8981\u5305\u542B\u4EFB\u4F55\u989D\u5916\u7684 markdown \u6807\u8BB0\uFF08\u5982 \`\`\`json \u7B49\u5305\u88F9\uFF09\uFF1A
+You MUST return the following JSON formatted data. Do NOT include any extra markdown wrappers (like \`\`\`json):
 {
   "operations": [
     {
-      "action": "create", // "modify" \u6216\u8005\u662F "create"
+      "action": "create", // "modify" or "create"
       "path": "wiki/Entity_Karpathy.md",
       "title": "Andrej Karpathy",
-      "content": "# Andrej Karpathy\\n...\u8FD9\u91CC\u662F\u66F4\u65B0\u540E\u7684\u5B8C\u6574 Markdown \u5185\u5BB9..."
+      "content": "# Andrej Karpathy\\n...Here is the updated full Markdown content..."
     }
   ],
   "index_updates": [
     {
       "path": "wiki/Entity_Karpathy.md",
-      "summary": "\u66F4\u65B0\u540E\u7684\u4E00\u53E5\u8BDD\u603B\u7ED3\u63CF\u8FF0..."
+      "summary": "Updated one-sentence summary..."
     }
   ],
   "contradictions": [
     {
       "page": "wiki/LLM_Wiki.md",
-      "reason": "\u65B0\u6587\u7AE0\u6307\u51FA\u5185\u5BB9\u4E0E\u4E4B\u524D\u9875\u9762\u4E2D\u8BB0\u5F55\u7684\u51B2\u7A81\u3002"
+      "reason": "The new article points out a conflict with previously recorded content."
     }
   ]
 }
 `;
 var DEFAULT_QUERY_SKILL = `---
 name: Query
-description: \u5BF9\u8BDD\u5F15\u64CE\uFF0C\u4ECE\u7D22\u5F15\u5217\u8868\u4E2D\u5B9A\u4F4D\u5E76\u95EE\u7B54\u3002
+description: Conversation engine: locate answers from the index and respond.
 version: 1.0.0
 ---
 
 # System Prompt
-\u4F60\u662F\u4E00\u4E2A\u667A\u80FD Wiki \u95EE\u7B54\u52A9\u7406\u3002\u4F60\u7684\u4EFB\u52A1\u662F\u6839\u636E\u7528\u6237\u63D0\u4F9B\u7684\u76F8\u5173 Wiki \u9875\u9762\u5185\u5BB9\uFF0C\u56DE\u7B54\u7528\u6237\u7684\u95EE\u9898\u3002
-\u4F60\u5FC5\u987B\u786E\u4FDD\uFF1A
-1. **\u53EA\u57FA\u4E8E\u7ED9\u5B9A\u7684\u9875\u9762\u5185\u5BB9\u56DE\u7B54**\uFF0C\u5982\u679C\u5185\u5BB9\u4E2D\u4E0D\u5305\u542B\u7B54\u6848\uFF0C\u8BF7\u76F4\u63A5\u8BF4\u201C\u77E5\u8BC6\u5E93\u4E2D\u6682\u65E0\u76F8\u5173\u8BB0\u5F55\uFF0C\u5EFA\u8BAE\u5BFC\u5165\u65B0\u526A\u85CF\u201D\u3002
-2. **\u6807\u660E\u51FA\u5904**\uFF1A\u5728\u56DE\u7B54\u7684\u5173\u952E\u53E5\u672B\u5C3E\uFF0C\u4F7F\u7528\u7C7B\u4F3C [[Page_Name#Section]] \u7684\u65B9\u5F0F\u6807\u6CE8\u5F15\u7528\u7684\u77E5\u8BC6\u5E93\u9875\u9762\u3002
-3. **\u4FDD\u6301 Obsidian \u683C\u5F0F**\uFF1A\u56DE\u7B54\u76F4\u63A5\u4F7F\u7528 Markdown \u683C\u5F0F\uFF0C\u4FDD\u7559\u6BB5\u843D\u6392\u7248\u3002
+You are an intelligent Wiki QA assistant. Your task is to answer the user's question based on the provided related Wiki page content.
+You must ensure:
+1. **Only answer based on the given page content**. If the content does not contain the answer, say "No relevant records in the knowledge base, please import new clippings."
+2. **Cite Sources**: At the end of key sentences, cite the referenced Wiki page using [[Page_Name#Section]].
+3. **Maintain Obsidian Formatting**: Answer in Markdown, preserving paragraph layout.
 
 # Input Context
-## \u7528\u6237\u63D0\u95EE
+## User Question
 {{user_question}}
 
-## \u76F8\u5173 Wiki \u9875\u9762\u5185\u5BB9
+## Related Wiki Content
 {{page_contents}}
 
 # Output Format
-\u8BF7\u76F4\u63A5\u8F93\u51FA Markdown \u683C\u5F0F\u7684\u56DE\u7B54\u6B63\u6587\uFF0C\u5728\u53E5\u672B\u6DFB\u52A0\u76F8\u5E94\u7684 [[\u53CC\u94FE\u5F15\u7528]]\u3002
+Output the Markdown response directly, appending [[Wikilinks]] at the end of sentences.
 `;
 var DEFAULT_SAVEPAGE_SKILL = `---
 name: SavePage
-description: \u5C06\u5BF9\u8BDD\u95EE\u7B54\u5185\u5BB9\u53BB\u8BDD\u8BED\u5316\uFF0C\u63D0\u70BC\u4E3A\u6807\u51C6\u7684 Wiki \u9875\u9762\u3002
+description: Remove conversational tone from Q&A and refine it into a standard Wiki page.
 version: 1.0.0
 ---
 
 # System Prompt
-\u4F60\u662F\u4E00\u540D Wiki \u9875\u9762\u7CBE\u70BC\u4E13\u5BB6\u3002\u4F60\u7684\u4EFB\u52A1\u662F\u8BFB\u53D6\u7528\u6237\u7684\u63D0\u95EE\u4E0E\u5BF9\u5E94\u7684\u52A9\u624B\u56DE\u7B54\uFF0C\u5C06\u5176\u8F6C\u5316\u4E3A\u4E00\u7BC7\u683C\u5F0F\u89C4\u8303\u3001\u5BA2\u89C2\u9648\u8FF0\u3001\u7ED3\u6784\u6E05\u6670\u7684 Wiki \u77E5\u8BC6\u5E93 Markdown \u9875\u9762\u3002
+You are a Wiki page refinement expert. Your task is to read the user's question and the assistant's answer, and convert it into a well-formatted, objective, and clearly structured Wiki knowledge base Markdown page.
 
-\u8BF7\u9075\u5B88\u4EE5\u4E0B\u8F6C\u6362\u89C4\u5219\uFF1A
-1. **\u53BB\u8BDD\u8BED\u5316**\uFF1A\u79FB\u9664\u6240\u6709\u8BF8\u5982\u201C\u597D\u7684\uFF0C\u4E3A\u60A8\u89E3\u7B54\u5982\u4E0B\uFF1A\u201D\u3001\u201C\u5F53\u7136\u53EF\u4EE5\uFF0C\u5BF9\u6BD4\u53D1\u73B0...\u201D\u7B49\u804A\u5929\u53E3\u543B\u6216\u5BD2\u6684\u8BED\u3002
-2. **\u89C4\u8303\u547D\u540D\u4E0E\u5927\u7EB2**\uFF1A\u4E3B\u6807\u9898\u4F7F\u7528 # \u7B49\u7EA7\uFF0C\u5185\u90E8\u4F7F\u7528 ## \u548C ### \u8FDB\u884C\u8BED\u4E49\u5212\u5206\u3002
-3. **\u4FDD\u7559\u5E76\u4FEE\u6B63\u53CC\u94FE**\uFF1A\u4FDD\u7559\u539F\u56DE\u7B54\u4E2D\u7684 [[\u53CC\u94FE\u5F15\u7528]]\uFF0C\u5E76\u57FA\u4E8E\u4F60\u7684\u5168\u5C40\u77E5\u8BC6\u5BF9\u94FE\u63A5\u540D\u79F0\u8FDB\u884C\u6807\u51C6\u5316\u3002
-4. **\u751F\u6210\u6458\u8981\u4E0E\u522B\u540D**\uFF1A\u751F\u6210\u9002\u5408 Obsidian Frontmatter \u683C\u5F0F\u7684 aliases\uFF08\u522B\u540D\u5217\u8868\uFF09\u548C\u4E00\u53E5\u8BDD summary\u3002
+Please follow these conversion rules:
+1. **Remove Conversational Tone**: Remove all chatty or greeting phrases like "Sure, here is the answer:", "Of course, a comparison reveals...".
+2. **Standardize Naming and Outline**: Use # for the main title, and ## and ### for internal semantic divisions.
+3. **Preserve and Fix Wikilinks**: Keep the original [[wikilinks]] and standardize their names based on global knowledge.
+4. **Generate Summary and Aliases**: Create aliases and a one-sentence summary suitable for Obsidian Frontmatter.
 
 # Input Context
-## \u7528\u6237\u63D0\u95EE
+## User Question
 {{user_question}}
 
-## \u539F\u59CB\u56DE\u7B54\u5185\u5BB9
+## Original Answer Content
 {{assistant_answer}}
 
 # Output Format
-\u8BF7\u4E25\u683C\u8FD4\u56DE\u4EE5\u4E0B JSON \u683C\u5F0F\u6570\u636E\uFF0C\u4E0D\u8981\u5305\u542B\u4EFB\u4F55\u989D\u5916\u7684 Markdown \u5305\u88F9\uFF1A
+Strictly return the following JSON data. Do not include any extra Markdown wrappers:
 {
-  "title": "PageTitle", // \u63A8\u8350\u7684\u6587\u4EF6\u6807\u9898\u540D
+  "title": "PageTitle", // Recommended file title
   "frontmatter": {
-    "aliases": ["\u522B\u540D"],
-    "summary": "\u4E00\u53E5\u8BDD\u6458\u8981"
+    "aliases": ["Alias"],
+    "summary": "One-sentence summary"
   },
-  "content": "# \u6807\u9898\\n...\u6B63\u6587\u5185\u5BB9..."
+  "content": "# Title\\n...Body content..."
 }
 `;
 var DEFAULT_LINT_SKILL = `---
 name: Lint
-description: \u77E5\u8BC6\u5065\u5EB7\u5EA6\u4F53\u68C0\uFF0C\u5BFB\u627E\u51B2\u7A81\u3001\u9648\u65E7\u4FE1\u606F\u548C\u5B64\u7ACB\u8282\u70B9\u3002
+description: Knowledge health check: look for conflicts, stale information, and orphan nodes.
 version: 1.0.0
 ---
 
 # System Prompt
-\u4F60\u662F\u4E00\u540D\u77E5\u8BC6\u5E93\u5BA1\u8BA1\u5458\u3002\u4F60\u7684\u4EFB\u52A1\u662F\u5BF9\u6BD4\u8F93\u5165\u7684 Wiki \u9875\u9762\u7FA4\u7EC4\uFF0C\u627E\u51FA\u4EE5\u4E0B\u51E0\u7C7B\u5065\u5EB7\u95EE\u9898\uFF1A
-1. **\u4FE1\u606F\u77DB\u76FE (Contradiction)**\uFF1A\u4E0D\u540C\u7684\u9875\u9762\u5BF9\u540C\u4E00\u4E2A\u4E8B\u5B9E\u3001\u6570\u636E\u6709\u4E0D\u540C\u7684\u63CF\u8FF0\uFF08\u4F8B\u5982\uFF0C\u4E00\u4E2A\u5199\u6307\u6807\u4E3A22\uFF0C\u53E6\u4E00\u4E2A\u5199\u4E3A23\uFF09\u3002
-2. **\u5B64\u7ACB\u8282\u70B9 (Orphan)**\uFF1A\u8BE5\u9875\u9762\u6CA1\u6709\u4EFB\u4F55\u5165\u7AD9\uFF08Inbound\uFF09\u53CC\u94FE\u5F15\u7528\uFF0C\u5BB9\u6613\u5728\u65E5\u5E38\u6D4F\u89C8\u4E2D\u8FF7\u5931\u3002
-3. **\u9648\u65E7\u6216\u7A7A\u767D\u9875\u9762 (Stale)**\uFF1A\u5185\u5BB9\u8FC7\u4E8E\u7A7A\u6D1E\u6216\u88AB\u6807\u8BB0\u4E3A\u9700\u8981\u8865\u5145\u7684\u7A7A\u767D\u9875\u9762\u3002
+You are a knowledge base auditor. Your task is to compare the input Wiki page groups and identify the following health issues:
+1. **Information Contradiction**: Different pages have conflicting descriptions for the same fact or data.
+2. **Orphan Node**: The page has no inbound wikilinks and can be easily lost.
+3. **Stale or Empty Page**: Content is too empty or marked as needing supplementation.
 
 # Input Context
-## \u5F85\u4F53\u68C0 Wiki \u9875\u9762\u96C6
+## Wiki Page Set for Health Check
 {{group_pages}}
 
 # Output Format
-\u8BF7\u4E25\u683C\u8FD4\u56DE\u4EE5\u4E0B JSON \u683C\u5F0F\u6570\u636E\uFF0C\u4E0D\u8981\u5305\u542B\u4EFB\u4F55\u989D\u5916\u7684\u5305\u88F9\u6216\u8BF4\u660E\uFF1A
+Strictly return the following JSON data. Do not include any extra wrappers or explanations:
 {
   "contradictions": [
     {
       "files": ["wiki/PageA.md", "wiki/PageB.md"],
-      "description": "\u77DB\u76FE\u63CF\u8FF0"
+      "description": "Conflict description"
     }
   ],
   "orphans": [
     "wiki/PageC.md"
   ],
   "suggestions": [
-    "\u5EFA\u8BAE\u5728 wiki/PageD.md \u4E2D\u6DFB\u52A0\u5BF9 wiki/PageC.md \u7684\u5F15\u7528\u3002"
+    "Suggest adding a reference to wiki/PageC.md in wiki/PageD.md."
   ]
 }
 `;
@@ -504,7 +504,7 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
     return VIEW_TYPE_CHAT;
   }
   getDisplayText() {
-    return "GenWiki \u667A\u80FD\u95EE\u7B54";
+    return "GenWiki Chat";
   }
   getIcon() {
     return "cpu";
@@ -514,25 +514,25 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
     container.empty();
     container.addClass("genwiki-chat-view");
     const headerRow = container.createDiv({ cls: "genwiki-header-row" });
-    headerRow.createEl("h3", { text: "\u{1F4AC} GenWiki \u667A\u80FD\u95EE\u7B54" });
+    headerRow.createEl("h3", { text: "\u{1F4AC} GenWiki Chat" });
     const startIngestBtn = headerRow.createEl("button", {
       cls: "genwiki-top-ingest-btn mod-cta",
-      text: "\u{1F4E5} \u5F00\u59CB\u5904\u7406\u526A\u85CF"
+      text: "\u{1F4E5} Process Clippings"
     });
     startIngestBtn.addEventListener("click", () => {
       void (async () => {
         startIngestBtn.disabled = true;
-        startIngestBtn.setText("\u6B63\u5728\u6574\u7406\u4E2D...");
-        new import_obsidian2.Notice("\u6B63\u5728\u5F00\u59CB\u626B\u63CF\u5E76\u6574\u7406\u526A\u85CF\u8D44\u6599...");
+        startIngestBtn.setText("Processing...");
+        new import_obsidian2.Notice("Scanning and organizing clippings...");
         try {
           await this.plugin.runIngest();
-          new import_obsidian2.Notice("\u{1F389} \u526A\u85CF\u6574\u7406\u5B8C\u6210\uFF01");
+          new import_obsidian2.Notice("\u{1F389} Clippings processed successfully!");
         } catch (e) {
-          new import_obsidian2.Notice(`Ingest \u5931\u8D25: ${e.message}`);
+          new import_obsidian2.Notice(`Ingest failed: ${e.message}`);
           console.error(e);
         } finally {
           startIngestBtn.disabled = false;
-          startIngestBtn.setText("\u{1F4E5} \u5F00\u59CB\u5904\u7406\u526A\u85CF");
+          startIngestBtn.setText("\u{1F4E5} Process Clippings");
         }
       })();
     });
@@ -547,13 +547,13 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
         }
       }
     });
-    this.appendMessage("assistant", "\u4F60\u597D\uFF01\u6211\u662F\u4F60\u7684 GenWiki \u52A9\u624B\u3002\u6211\u53EF\u4EE5\u57FA\u4E8E\u4F60\u5F53\u524D Wiki \u77E5\u8BC6\u5E93\u5185\u7684\u6982\u5FF5\u548C\u5B9E\u4F53\u56DE\u7B54\u4F60\u7684\u95EE\u9898\u3002\u95EE\u7B54\u4EA7\u751F\u7684\u6D1E\u5BDF\u652F\u6301\u4E00\u952E\u4FDD\u5B58\u4E3A\u6B63\u5F0F\u77E5\u8BC6\u6587\u4EF6\u3002");
+    this.appendMessage("assistant", "Hello! I am your GenWiki assistant. I can answer questions based on concepts and entities in your current Wiki knowledge base. Insights generated from our Q&A can be saved as formal knowledge pages with one click.");
     const inputContainer = container.createDiv({ cls: "genwiki-chat-input-container" });
     this.inputArea = inputContainer.createEl("textarea", {
       cls: "genwiki-chat-input",
-      placeholder: "\u5411 Wiki \u63D0\u95EE..."
+      placeholder: "Ask Wiki..."
     });
-    this.sendButton = inputContainer.createEl("button", { text: "\u53D1\u9001" });
+    this.sendButton = inputContainer.createEl("button", { text: "Send" });
     this.sendButton.addEventListener("click", () => {
       void this.handleSend();
     });
@@ -580,7 +580,7 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
       return;
     this.appendMessage("user", query);
     this.inputArea.value = "";
-    const assistantMsgDiv = this.appendMessage("assistant", "\u6B63\u5728\u601D\u8003\u68C0\u7D22\u4E2D...");
+    const assistantMsgDiv = this.appendMessage("assistant", "Thinking and searching...");
     this.sendButton.disabled = true;
     this.inputArea.disabled = true;
     try {
@@ -591,35 +591,35 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
       const actionsDiv = assistantMsgDiv.createDiv({ cls: "genwiki-msg-actions" });
       const copyBtn = actionsDiv.createEl("button", {
         cls: "genwiki-copy-btn",
-        text: "\u{1F4CB} \u590D\u5236"
+        text: "\u{1F4CB} Copy"
       });
       copyBtn.addEventListener("click", () => {
         navigator.clipboard.writeText(answer);
-        new import_obsidian2.Notice("\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F\uFF01");
+        new import_obsidian2.Notice("Copied to clipboard!");
       });
-      const isNoRecord = answer.includes("\u6682\u65E0\u76F8\u5173\u8BB0\u5F55") || answer.includes("\u6682\u65E0\u76F8\u5173") || answer.includes("\u6682\u65E0\u76F8\u5173Wiki");
+      const isNoRecord = answer.includes("No relevant records") || answer.includes("No relevant") || answer.includes("No relevantWiki");
       if (!isNoRecord) {
         const saveBtn = actionsDiv.createEl("button", {
           cls: "genwiki-save-btn mod-cta",
-          text: "\u{1F4BE} \u4FDD\u5B58\u4E3A Wiki \u9875\u9762"
+          text: "\u{1F4BE} Save as Wiki Page"
         });
         saveBtn.addEventListener("click", () => {
           void (async () => {
             saveBtn.disabled = true;
-            saveBtn.setText("\u6B63\u5728\u63D0\u70BC\u5F52\u7EB3...");
+            saveBtn.setText("Summarizing...");
             try {
               await this.saveResponseToWiki(query, answer);
-              saveBtn.setText("\u2705 \u5DF2\u6210\u529F\u4FDD\u5B58");
+              saveBtn.setText("\u2705 Saved successfully");
             } catch (err) {
-              new import_obsidian2.Notice(`\u4FDD\u5B58\u5931\u8D25: ${err.message}`);
+              new import_obsidian2.Notice(`Save failed: ${err.message}`);
               saveBtn.disabled = false;
-              saveBtn.setText("\u{1F4BE} \u4FDD\u5B58\u4E3A Wiki \u9875\u9762");
+              saveBtn.setText("\u{1F4BE} Save as Wiki Page");
             }
           })();
         });
       }
     } catch (err) {
-      assistantMsgDiv.setText(`\u9519\u8BEF: ${err.message}`);
+      assistantMsgDiv.setText(`Error: ${err.message}`);
       console.error(err);
     } finally {
       this.sendButton.disabled = false;
@@ -639,7 +639,7 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
       user_question: question,
       assistant_answer: answer
     });
-    new import_obsidian2.Notice("\u6B63\u5728\u8FDB\u884C\u683C\u5F0F\u6574\u7406\u4E0E\u53BB\u8BDD\u8BED\u5316...");
+    new import_obsidian2.Notice("Formatting and formalizing...");
     const response = await this.plugin.llmClient.complete(userPrompt, skill.systemPrompt);
     const cleanResponse = LLMClient.cleanJsonString(response);
     const parsed = (() => {
@@ -647,24 +647,24 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
         return JSON.parse(cleanResponse);
       } catch (e) {
         console.error("Failed to parse SavePage response JSON", cleanResponse, e);
-        throw new Error("\u6A21\u578B\u751F\u6210\u7684 JSON \u683C\u5F0F\u4E0D\u89C4\u8303\uFF0C\u8BF7\u91CD\u65B0\u5C1D\u8BD5\u3002");
+        throw new Error("Invalid JSON format generated by the model. Please try again.");
       }
     })();
     if (typeof parsed !== "object" || parsed === null) {
-      throw new Error("\u6A21\u578B\u751F\u6210\u7684 JSON \u4E0D\u662F\u5BF9\u8C61\u7C7B\u578B\uFF0C\u65E0\u6CD5\u4FDD\u5B58\u3002");
+      throw new Error("The JSON generated by the model is not an object and cannot be saved.");
     }
     const result = parsed;
     const title = typeof result.title === "string" ? result.title : void 0;
     const content = typeof result.content === "string" ? result.content : void 0;
     const frontmatter = typeof result.frontmatter === "object" && result.frontmatter !== null ? result.frontmatter : void 0;
     if (!title || !content) {
-      throw new Error("\u4FDD\u5B58\u7684\u6570\u636E\u4E2D\u7F3A\u5C11\u5FC5\u8981\u7684\u6587\u4EF6\u6807\u9898(title)\u6216\u5185\u5BB9(content)\u3002");
+      throw new Error("The saved data is missing the required title or content.");
     }
     const fileName = title.replace(/[\\/:*?"<>|]/g, "_");
     const destPath = (0, import_obsidian2.normalizePath)(`${this.plugin.settings.wikiDir}/${fileName}.md`);
     const fileExists = this.plugin.app.vault.getAbstractFileByPath(destPath);
     if (fileExists) {
-      throw new Error(`\u6587\u4EF6 ${destPath} \u5DF2\u5B58\u5728\uFF0C\u65E0\u6CD5\u8986\u76D6\u3002\u8BF7\u5728\u4FA7\u8FB9\u680F\u624B\u52A8\u6539\u540D\u91CD\u8BD5\u3002`);
+      throw new Error(`File ${destPath}  already exists and cannot be overwritten. Please rename it manually in the sidebar and try again.`);
     }
     const fm = frontmatter || {};
     const aliasesRaw = fm["aliases"];
@@ -723,7 +723,7 @@ var GenWikiChatView = class extends import_obsidian2.ItemView {
     await this.plugin.saveDatabase(db);
     await this.plugin.rebuildIndexMd(db);
     await this.plugin.logAction("chat_save", title);
-    new import_obsidian2.Notice(`\u{1F389} \u77E5\u8BC6\u70B9 [[${title}]] \u5DF2\u6210\u529F\u5F55\u5165 Wiki\uFF01`);
+    new import_obsidian2.Notice(`\u{1F389} Knowledge node [[${title}]] has been successfully added to the Wiki!`);
     const newFile = this.plugin.app.vault.getAbstractFileByPath(destPath);
     if (newFile instanceof import_obsidian2.TFile) {
       const leaf = this.plugin.app.workspace.getLeaf(false);
@@ -750,40 +750,40 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
     });
     this.addCommand({
       id: "ingest-clippings",
-      name: "Ingest Clippings (\u589E\u91CF\u5BFC\u5165\u526A\u85CF)",
+      name: "Ingest Clippings",
       callback: async () => {
-        new import_obsidian3.Notice("\u5F00\u59CB\u6574\u7406\u526A\u85CF\u8D44\u6599...");
+        new import_obsidian3.Notice("Starting to organize clippings...");
         try {
           await this.runIngest();
         } catch (e) {
-          new import_obsidian3.Notice(`Ingest \u5931\u8D25: ${e.message}`);
+          new import_obsidian3.Notice(`Ingest failed: ${e.message}`);
           console.error(e);
         }
       }
     });
     this.addCommand({
       id: "query-wiki",
-      name: "Query Wiki (\u667A\u80FD\u77E5\u8BC6\u68C0\u7D22\u4E0E\u5BF9\u8BDD)",
+      name: "Query Wiki",
       callback: () => {
         new QueryModal(this.app, this).open();
       }
     });
     this.addCommand({
       id: "lint-wiki",
-      name: "Lint Wiki (\u5065\u5EB7\u5EA6\u4F53\u68C0)",
+      name: "Lint Wiki (Health Check)",
       callback: async () => {
-        new import_obsidian3.Notice("\u6B63\u5728\u5F00\u59CB\u77E5\u8BC6\u5E93\u5065\u5EB7\u5BA1\u8BA1...");
+        new import_obsidian3.Notice("Starting knowledge base health audit...");
         try {
           await this.runLint();
         } catch (e) {
-          new import_obsidian3.Notice(`Lint \u5931\u8D25: ${e.message}`);
+          new import_obsidian3.Notice(`Lint failed: ${e.message}`);
           console.error(e);
         }
       }
     });
     this.addCommand({
       id: "open-chat-view",
-      name: "Open Chat Panel (\u6253\u5F00\u667A\u80FD\u95EE\u7B54\u4FA7\u8FB9\u680F)",
+      name: "Open Chat Panel",
       callback: () => this.activateView()
     });
   }
@@ -810,12 +810,22 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
       workspace.revealLeaf(leaf);
     }
   }
-  // Helper to calculate SHA256 in a pure client environment
+  // Helper to calculate SHA256 in a pure client environment, with mobile fallback
   async calculateHash(text) {
-    const msgBuffer = new TextEncoder().encode(text);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (typeof crypto !== "undefined" && crypto.subtle) {
+      const msgBuffer = new TextEncoder().encode(text);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    } else {
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) {
+        const char = text.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
+      }
+      return Math.abs(hash).toString(16).padStart(8, "0");
+    }
   }
   async initFolders() {
     const folders = [
@@ -853,19 +863,19 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
     if (!file) {
       await this.app.vault.create(claudePath, `# CLAUDE.md
 
-\u672C\u534F\u8BAE\u7EA6\u675F GenWiki \u5904\u7406\u77E5\u8BC6\u7684\u89C4\u8303\u3002`);
+This protocol governs how GenWiki processes knowledge.`);
     }
     const indexPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/index.md`);
     if (!this.app.vault.getAbstractFileByPath(indexPath)) {
       await this.app.vault.create(indexPath, `# Knowledge Index
 
-\u672C\u6587\u4EF6\u662F\u81EA\u52A8\u751F\u6210\u7684\u7D22\u5F15\u3002`);
+This file is an auto-generated index.`);
     }
     const logPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/log.md`);
     if (!this.app.vault.getAbstractFileByPath(logPath)) {
       await this.app.vault.create(logPath, `# Action Audit Logs
 
-\u8BB0\u5F55\u6BCF\u6B21\u77E5\u8BC6\u6574\u7406\u548C\u67E5\u8BE2\u3002`);
+Records every knowledge organization and query action.`);
     }
   }
   async loadDatabase() {
@@ -939,9 +949,9 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
       return;
     let content = `# Knowledge Index
 
-\u6B64\u9875\u9762\u7531 GenWiki \u81EA\u52A8\u66F4\u65B0\uFF0C\u5C55\u793A\u5168\u90E8\u5F52\u6863\u77E5\u8BC6\u70B9\u7684\u7D22\u5F15\u56FE\u8C31\u3002
+This page is auto-updated by GenWiki, showing an index graph of all archived knowledge points.
 
-## \u6982\u5FF5 (Concepts)
+## Concepts
 `;
     const concepts = Object.values(db.wiki_pages).filter((p) => p.type === "concept" && p.status !== "archived");
     const entities = Object.values(db.wiki_pages).filter((p) => p.type === "entity" && p.status !== "archived");
@@ -951,14 +961,14 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
 `;
     }
     content += `
-## \u5B9E\u4F53 (Entities)
+## Entities
 `;
     for (const p of entities) {
       content += `* [[${p.title}]] - *${p.summary}*
 `;
     }
     content += `
-## \u5176\u4ED6\u9875\u9762 (General Pages)
+## General Pages
 `;
     for (const p of generals) {
       content += `* [[${p.title}]] - *${p.summary}*
@@ -997,7 +1007,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
         index_content: indexContent,
         clipping_content: content
       });
-      new import_obsidian3.Notice(`\u6B63\u5728\u901A\u8FC7 AI \u5206\u6790 ${mdFile.name}...`);
+      new import_obsidian3.Notice(`Analyzing with AI: ${mdFile.name}...`);
       const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
       const cleanResponse = LLMClient.cleanJsonString(response);
       let resultParsed;
@@ -1005,7 +1015,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
         resultParsed = JSON.parse(cleanResponse);
       } catch (e) {
         console.error("Failed to parse LLM Response JSON", cleanResponse, e);
-        new import_obsidian3.Notice(`\u6A21\u578B\u8FD4\u56DE\u7684 JSON \u683C\u5F0F\u4E0D\u89C4\u8303\uFF0C\u8BF7\u91CD\u8BD5\uFF01`);
+        new import_obsidian3.Notice(`Invalid JSON returned by the model. Please try again!`);
         db.clippings[relativePath] = {
           path: relativePath,
           sha256: hash,
@@ -1017,7 +1027,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
         continue;
       }
       if (typeof resultParsed !== "object" || resultParsed === null) {
-        new import_obsidian3.Notice(`\u6A21\u578B\u8FD4\u56DE\u7684 JSON \u683C\u5F0F\u4E0D\u89C4\u8303\uFF08\u975E\u5BF9\u8C61\uFF09\uFF0C\u8BF7\u91CD\u8BD5\uFF01`);
+        new import_obsidian3.Notice(`Invalid JSON format (not an object) returned by the model, please try again!`);
         db.clippings[relativePath] = {
           path: relativePath,
           sha256: hash,
@@ -1074,7 +1084,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
         const idxAliases = Array.isArray(idxAliasesRaw) ? idxAliasesRaw.map((a) => String(a)) : existingPage?.aliases || [];
         const idxTypeRaw = typeof idxUpdate["type"] === "string" ? idxUpdate["type"] : existingPage?.type;
         const idxType = idxTypeRaw === "concept" || idxTypeRaw === "entity" || idxTypeRaw === "general" ? idxTypeRaw : "general";
-        const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] : existingPage?.summary || "\u81EA\u52A8\u751F\u6210\u7684\u4FE1\u606F\u6761\u76EE\u3002";
+        const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] : existingPage?.summary || "Auto-generated information entry.";
         db.wiki_pages[destPath] = {
           path: destPath,
           title: opTitle || (opFile instanceof import_obsidian3.TFile ? opFile.name.replace(".md", "") : "Untitled"),
@@ -1090,7 +1100,7 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
             {
               clipping_path: relativePath,
               line_range: "all",
-              paragraph_summary: idxSummary || "\u6E90\u81EA\u526A\u85CF\u7684\u603B\u7ED3"
+              paragraph_summary: idxSummary || "Summary from clippings"
             }
           ],
           audit: {
@@ -1126,9 +1136,9 @@ var GenWikiPlugin = class extends import_obsidian3.Plugin {
     if (processedAny) {
       await this.saveDatabase(db);
       await this.rebuildIndexMd(db);
-      new import_obsidian3.Notice("\u{1F389} \u526A\u85CF\u6574\u7406\u5408\u5E76\u5B8C\u6210\uFF01\u7D22\u5F15\u5DF2\u5237\u65B0\u3002");
+      new import_obsidian3.Notice("\u{1F389} Clippings merged and indexed successfully!");
     } else {
-      new import_obsidian3.Notice("\u6CA1\u6709\u627E\u5230\u672A\u5904\u7406\u7684\u526A\u85CF\u6587\u4EF6\uFF01");
+      new import_obsidian3.Notice("No unprocessed clippings found!");
     }
   }
   // P1: Query core execution
@@ -1163,7 +1173,7 @@ ${content}
       }
     }
     if (!combinedContents.trim()) {
-      combinedContents = "\uFF08\u6682\u65E0\u76F8\u5173Wiki\u77E5\u8BC6\u5185\u5BB9\uFF0C\u8BF7\u5148Ingest\u5BFC\u5165\u526A\u85CF\uFF09";
+      combinedContents = "(No relevant Wiki knowledge content, please ingest clippings first)";
     }
     const userPrompt = fillTemplate(skill.userPromptTemplate, {
       user_question: question,
@@ -1178,7 +1188,7 @@ ${content}
     const db = await this.loadDatabase();
     const activePages = Object.values(db.wiki_pages).filter((p) => p.status !== "archived");
     if (activePages.length === 0) {
-      new import_obsidian3.Notice("Wiki\u4E2D\u6CA1\u6709\u4EFB\u4F55\u9875\u9762\uFF0C\u8BF7\u5148\u6267\u884C Ingest \u5BFC\u5165\uFF01");
+      new import_obsidian3.Notice("There are no pages in the Wiki. Please run Ingest first!");
       return;
     }
     const lintSkillFile = this.app.vault.getAbstractFileByPath((0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/_skills/Lint.md`));
@@ -1207,7 +1217,7 @@ ${content}
       const userPrompt = fillTemplate(skill.userPromptTemplate, {
         group_pages: groupPagesContent
       });
-      new import_obsidian3.Notice(`\u6B63\u5728\u5BA1\u8BA1\u7B2C ${Math.floor(i / batchSize) + 1} \u7EC4\u77E5\u8BC6\u8282\u70B9...`);
+      new import_obsidian3.Notice(`Auditing batch ${Math.floor(i / batchSize) + 1} of knowledge nodes...`);
       const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
       const cleanResponse = LLMClient.cleanJsonString(response);
       try {
@@ -1236,12 +1246,12 @@ ${content}
       return !page || !Array.isArray(page.links_from) || page.links_from.length === 0;
     });
     const reportPath = (0, import_obsidian3.normalizePath)(`${this.settings.wikiDir}/Lint_Report.md`);
-    let reportContent = `# GenWiki \u77E5\u8BC6\u5E93\u5065\u5EB7\u4F53\u68C0\u5BA1\u8BA1\u62A5\u544A
+    let reportContent = `# GenWiki Knowledge Base Health Audit Report
 
-\u62A5\u544A\u751F\u6210\u65F6\u95F4: ${(/* @__PURE__ */ new Date()).toLocaleString()}
+Report generation time: ${(/* @__PURE__ */ new Date()).toLocaleString()}
 
 `;
-    reportContent += `## 1. \u4FE1\u606F\u51B2\u7A81\u4E0E\u77DB\u76FE\u8B66\u544A (Contradictions)
+    reportContent += `## 1. Information Conflicts and Contradictions
 `;
     if (contradictions.length > 0) {
       for (const cRaw of contradictions) {
@@ -1251,29 +1261,29 @@ ${content}
         const filesRaw = c["files"];
         const filesArr = Array.isArray(filesRaw) ? filesRaw.map((f) => String(f)) : [];
         const desc = typeof c["description"] === "string" ? c["description"] : "";
-        reportContent += `* **\u6D89\u53CA\u6587\u4EF6**: ${filesArr.map((f) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}
-  * **\u77DB\u76FE\u63CF\u8FF0**: ${desc}
+        reportContent += `* **Files involved**: ${filesArr.map((f) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}
+  * **Conflict description**: ${desc}
 `;
       }
     } else {
-      reportContent += `\u2705 \u672A\u68C0\u6D4B\u5230\u660E\u663E\u7684\u903B\u8F91\u51B2\u7A81\u6216\u6570\u636E\u77DB\u76FE\u3002
+      reportContent += `\u2705 No obvious logical conflicts or data contradictions detected.
 `;
     }
     reportContent += `
-## 2. \u5B64\u7ACB\u8282\u70B9\u5217\u8868 (Orphan Pages)
+## 2. Orphan Pages List
 `;
     if (finalOrphans.length > 0) {
       for (const path of finalOrphans) {
         const title = path.replace(this.settings.wikiDir + "/", "").replace(".md", "");
-        reportContent += `* [[${title}]] - *\u65E0\u5176\u4ED6\u9875\u9762\u5F15\u7528*
+        reportContent += `* [[${title}]] - *No inbound references*
 `;
       }
     } else {
-      reportContent += `\u2705 \u6240\u6709 Wiki \u9875\u9762\u5747\u6709\u5165\u7AD9\u94FE\u63A5\u5173\u8054\u3002
+      reportContent += `\u2705 All Wiki pages have inbound links.
 `;
     }
     reportContent += `
-## 3. \u5173\u8054\u6784\u5EFA\u4E0E\u8865\u5168\u5EFA\u8BAE (Suggestions)
+## 3. Association Building and Completion Suggestions
 `;
     if (suggestions.length > 0) {
       for (const s of suggestions) {
@@ -1281,7 +1291,7 @@ ${content}
 `;
       }
     } else {
-      reportContent += `\u2705 \u76EE\u524D\u8FDE\u63A5\u56FE\u8C31\u5B8C\u6574\u6027\u826F\u597D\u3002
+      reportContent += `\u2705 The connection graph is currently complete and healthy.
 `;
     }
     const reportFile = this.app.vault.getAbstractFileByPath(reportPath);
@@ -1290,8 +1300,8 @@ ${content}
     } else {
       await this.app.vault.create(reportPath, reportContent);
     }
-    await this.logAction("lint", "Lint\u5065\u5EB7\u5BA1\u8BA1\u62A5\u544A");
-    new import_obsidian3.Notice("\u{1F389} \u77E5\u8BC6\u5065\u5EB7\u4F53\u68C0\u5B8C\u6210\uFF01\u62A5\u544A\u5DF2\u751F\u6210\u3002");
+    await this.logAction("lint", "Lint Health Audit Report");
+    new import_obsidian3.Notice("\u{1F389} Knowledge health check complete! Report generated.");
     const leaf = this.app.workspace.getLeaf(false);
     const reportFileObj = this.app.vault.getAbstractFileByPath(reportPath);
     if (leaf && reportFileObj instanceof import_obsidian3.TFile)
@@ -1306,19 +1316,19 @@ var QueryModal = class extends import_obsidian3.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "\u{1F50D} \u667A\u80FD Wiki \u95EE\u7B54\u68C0\u7D22" });
+    contentEl.createEl("h2", { text: "\u{1F50D} Smart Wiki QA Search" });
     const inputEl = contentEl.createEl("input", {
       type: "text",
-      placeholder: "\u8BF7\u8F93\u5165\u60A8\u5BF9 Wiki \u7684\u7591\u95EE\uFF08\u652F\u6301\u6A21\u7CCA\u8BED\u4E49\u68C0\u7D22\uFF09..."
+      placeholder: "Please enter your question about the Wiki (supports fuzzy semantic search)..."
     });
     inputEl.addClass("genwiki-query-input");
-    const submitBtn = contentEl.createEl("button", { text: "\u63D0\u4EA4\u95EE\u7B54" });
+    const submitBtn = contentEl.createEl("button", { text: "Submit Question" });
     const resultContainer = contentEl.createDiv({ cls: "genwiki-query-result" });
     submitBtn.addEventListener("click", async () => {
       const query = inputEl.value.trim();
       if (!query)
         return;
-      resultContainer.setText("\u6B63\u5728\u5206\u6790\u68C0\u7D22\uFF0C\u8BF7\u7A0D\u5019...");
+      resultContainer.setText("Analyzing and searching, please wait...");
       submitBtn.disabled = true;
       try {
         const ans = await this.plugin.executeQuery(query);
@@ -1326,7 +1336,7 @@ var QueryModal = class extends import_obsidian3.Modal {
         const preEl = resultContainer.createEl("pre", { cls: "genwiki-query-pre" });
         preEl.setText(ans);
       } catch (e) {
-        resultContainer.setText(`\u67E5\u8BE2\u9519\u8BEF: ${e.message}`);
+        resultContainer.setText(`Query Error: ${e.message}`);
         console.error(e);
       } finally {
         submitBtn.disabled = false;
@@ -1346,11 +1356,11 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
   addModelSetting(containerEl, providerName, presetsModel, currentModel, onModelChange) {
     const isPreset = presetsModel.includes(currentModel);
     const dropdownValue = isPreset ? currentModel : "customized";
-    new import_obsidian3.Setting(containerEl).setName(`${providerName} Model`).setDesc("\u9009\u62E9\u9884\u8BBE\u6A21\u578B\u6216\u81EA\u5B9A\u4E49").addDropdown((dropdown) => {
+    new import_obsidian3.Setting(containerEl).setName(`${providerName} Model`).setDesc("Select a preset model or customize").addDropdown((dropdown) => {
       for (const m of presetsModel) {
         dropdown.addOption(m, m);
       }
-      dropdown.addOption("customized", "\u81EA\u5B9A\u4E49 (Custom)");
+      dropdown.addOption("customized", "Custom");
       dropdown.setValue(dropdownValue);
       dropdown.onChange(async (val) => {
         if (val === "customized") {
@@ -1362,8 +1372,8 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       });
     });
     if (dropdownValue === "customized") {
-      new import_obsidian3.Setting(containerEl).setName(`\u81EA\u5B9A\u4E49 ${providerName} Model ID`).setDesc("\u8BF7\u8F93\u5165\u60A8\u60F3\u8981\u4F7F\u7528\u7684\u81EA\u5B9A\u4E49\u6A21\u578B\u6807\u8BC6\u7B26").addText(
-        (text) => text.setPlaceholder("\u4F8B\u5982: gpt-4-custom").setValue(currentModel).onChange(async (val) => {
+      new import_obsidian3.Setting(containerEl).setName(`Custom ${providerName} Model ID`).setDesc("Enter your custom model identifier").addText(
+        (text) => text.setPlaceholder("e.g., gpt-4-custom").setValue(currentModel).onChange(async (val) => {
           await onModelChange(val);
         })
       );
@@ -1372,8 +1382,8 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian3.Setting(containerEl).setName("\u5927\u6A21\u578B\u8BBE\u7F6E").setHeading();
-    new import_obsidian3.Setting(containerEl).setName("\u9ED8\u8BA4\u5927\u6A21\u578B\u4F9B\u5E94\u5546 (Provider)").setDesc("\u9009\u62E9\u4F7F\u7528\u7684\u6A21\u578B\u901A\u9053").addDropdown((dropdown) => dropdown.addOption("gemini", "Google Gemini").addOption("anthropic", "Anthropic Claude").addOption("openai", "OpenAI").addOption("deepseek", "DeepSeek").addOption("kimi", "Moonshot Kimi").addOption("openrouter", "OpenRouter").setValue(this.plugin.settings.provider).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Model Settings").setHeading();
+    new import_obsidian3.Setting(containerEl).setName("Default Model Provider").setDesc("Select the model provider to use").addDropdown((dropdown) => dropdown.addOption("gemini", "Google Gemini").addOption("anthropic", "Anthropic Claude").addOption("openai", "OpenAI").addOption("deepseek", "DeepSeek").addOption("kimi", "Moonshot Kimi").addOption("openrouter", "OpenRouter").setValue(this.plugin.settings.provider).onChange(async (value) => {
       this.plugin.settings.provider = value;
       await this.plugin.saveSettings();
       this.display();
@@ -1528,12 +1538,12 @@ var GenWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         }
       );
     }
-    new import_obsidian3.Setting(containerEl).setName("\u76EE\u5F55\u8DEF\u5F84\u914D\u7F6E (Paths)").setHeading();
-    new import_obsidian3.Setting(containerEl).setName("Clippings \u76EE\u5F55").setDesc("\u7F51\u9875\u526A\u85CF\u5B58\u653E\u8DEF\u5F84").addText((text) => text.setValue(this.plugin.settings.clippingsDir).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Directory Paths").setHeading();
+    new import_obsidian3.Setting(containerEl).setName("Clippings Directory").setDesc("Path for storing web clippings").addText((text) => text.setValue(this.plugin.settings.clippingsDir).onChange(async (value) => {
       this.plugin.settings.clippingsDir = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(containerEl).setName("Wiki \u76EE\u5F55").setDesc("\u7ED3\u6784\u5316\u77E5\u8BC6\u6587\u4EF6\u5B58\u653E\u8DEF\u5F84").addText((text) => text.setValue(this.plugin.settings.wikiDir).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Wiki Directory").setDesc("Path for structured knowledge files").addText((text) => text.setValue(this.plugin.settings.wikiDir).onChange(async (value) => {
       this.plugin.settings.wikiDir = value;
       await this.plugin.saveSettings();
     }));

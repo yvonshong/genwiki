@@ -33,13 +33,13 @@ export default class GenWikiPlugin extends Plugin {
 		// Register commands
 		this.addCommand({
 			id: "ingest-clippings",
-			name: "Ingest Clippings (增量导入剪藏)",
+			name: "Ingest Clippings",
 			callback: async () => {
-				new Notice("开始整理剪藏资料...");
+				new Notice("Starting to organize clippings...");
 				try {
 					await this.runIngest();
 				} catch (e) {
-					new Notice(`Ingest 失败: ${(e as Error).message}`);
+					new Notice(`Ingest failed: ${(e as Error).message}`);
 					console.error(e);
 				}
 			}
@@ -47,7 +47,7 @@ export default class GenWikiPlugin extends Plugin {
 
 		this.addCommand({
 			id: "query-wiki",
-			name: "Query Wiki (智能知识检索与对话)",
+			name: "Query Wiki",
 			callback: () => {
 				new QueryModal(this.app, this).open();
 			}
@@ -55,13 +55,13 @@ export default class GenWikiPlugin extends Plugin {
 
 		this.addCommand({
 			id: "lint-wiki",
-			name: "Lint Wiki (健康度体检)",
+			name: "Lint Wiki (Health Check)",
 			callback: async () => {
-				new Notice("正在开始知识库健康审计...");
+				new Notice("Starting knowledge base health audit...");
 				try {
 					await this.runLint();
 				} catch (e) {
-					new Notice(`Lint 失败: ${(e as Error).message}`);
+					new Notice(`Lint failed: ${(e as Error).message}`);
 					console.error(e);
 				}
 			}
@@ -69,7 +69,7 @@ export default class GenWikiPlugin extends Plugin {
 
 		this.addCommand({
 			id: "open-chat-view",
-			name: "Open Chat Panel (打开智能问答侧边栏)",
+			name: "Open Chat Panel",
 			callback: () => this.activateView()
 		});
 	}
@@ -158,18 +158,18 @@ export default class GenWikiPlugin extends Plugin {
 		const claudePath = normalizePath(`${this.settings.wikiDir}/_agents/CLAUDE.md`);
 		const file = this.app.vault.getAbstractFileByPath(claudePath);
 		if (!file) {
-			await this.app.vault.create(claudePath, `# CLAUDE.md\n\n本协议约束 GenWiki 处理知识的规范。`);
+			await this.app.vault.create(claudePath, `# CLAUDE.md\n\nThis protocol governs how GenWiki processes knowledge.`);
 		}
 
 		// Init log.md and index.md
 		const indexPath = normalizePath(`${this.settings.wikiDir}/index.md`);
 		if (!this.app.vault.getAbstractFileByPath(indexPath)) {
-			await this.app.vault.create(indexPath, `# Knowledge Index\n\n本文件是自动生成的索引。`);
+			await this.app.vault.create(indexPath, `# Knowledge Index\n\nThis file is an auto-generated index.`);
 		}
 
 		const logPath = normalizePath(`${this.settings.wikiDir}/log.md`);
 		if (!this.app.vault.getAbstractFileByPath(logPath)) {
-			await this.app.vault.create(logPath, `# Action Audit Logs\n\n记录每次知识整理和查询。`);
+			await this.app.vault.create(logPath, `# Action Audit Logs\n\nRecords every knowledge organization and query action.`);
 		}
 	}
 
@@ -248,7 +248,7 @@ export default class GenWikiPlugin extends Plugin {
 		const file = this.app.vault.getAbstractFileByPath(indexPath);
 		if (!(file instanceof TFile)) return;
 
-		let content = `# Knowledge Index\n\n此页面由 GenWiki 自动更新，展示全部归档知识点的索引图谱。\n\n## 概念 (Concepts)\n`;
+		let content = `# Knowledge Index\n\nThis page is auto-updated by GenWiki, showing an index graph of all archived knowledge points.\n\n## Concepts\n`;
 		
 		const concepts = Object.values(db.wiki_pages).filter(p => p.type === "concept" && p.status !== "archived");
 		const entities = Object.values(db.wiki_pages).filter(p => p.type === "entity" && p.status !== "archived");
@@ -258,12 +258,12 @@ export default class GenWikiPlugin extends Plugin {
 			content += `* [[${p.title}]] - *${p.summary}*\n`;
 		}
 
-		content += `\n## 实体 (Entities)\n`;
+		content += `\n## Entities\n`;
 		for (const p of entities) {
 			content += `* [[${p.title}]] - *${p.summary}*\n`;
 		}
 
-		content += `\n## 其他页面 (General Pages)\n`;
+		content += `\n## General Pages\n`;
 		for (const p of generals) {
 			content += `* [[${p.title}]] - *${p.summary}*\n`;
 		}
@@ -314,7 +314,7 @@ export default class GenWikiPlugin extends Plugin {
 				clipping_content: content
 			});
 
-			new Notice(`正在通过 AI 分析 ${mdFile.name}...`);
+			new Notice(`Analyzing with AI: ${mdFile.name}...`);
 			const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
 			const cleanResponse = LLMClient.cleanJsonString(response);
 
@@ -323,7 +323,7 @@ export default class GenWikiPlugin extends Plugin {
 				resultParsed = JSON.parse(cleanResponse) as unknown;
 			} catch (e) {
 				console.error("Failed to parse LLM Response JSON", cleanResponse, e);
-				new Notice(`模型返回的 JSON 格式不规范，请重试！`);
+				new Notice(`Invalid JSON returned by the model. Please try again!`);
 				db.clippings[relativePath] = {
 					path: relativePath,
 					sha256: hash,
@@ -336,7 +336,7 @@ export default class GenWikiPlugin extends Plugin {
 			}
 
 			if (typeof resultParsed !== "object" || resultParsed === null) {
-				new Notice(`模型返回的 JSON 格式不规范（非对象），请重试！`);
+				new Notice(`Invalid JSON format (not an object) returned by the model, please try again!`);
 				db.clippings[relativePath] = {
 					path: relativePath,
 					sha256: hash,
@@ -403,7 +403,7 @@ export default class GenWikiPlugin extends Plugin {
 				const idxAliases = Array.isArray(idxAliasesRaw) ? idxAliasesRaw.map(a => String(a)) : existingPage?.aliases || [];
 				const idxTypeRaw = typeof idxUpdate["type"] === "string" ? idxUpdate["type"] as string : existingPage?.type;
 				const idxType = idxTypeRaw === "concept" || idxTypeRaw === "entity" || idxTypeRaw === "general" ? idxTypeRaw : "general";
-				const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] as string : existingPage?.summary || "自动生成的信息条目。";
+				const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] as string : existingPage?.summary || "Auto-generated information entry.";
 
 				db.wiki_pages[destPath] = {
 					path: destPath,
@@ -420,7 +420,7 @@ export default class GenWikiPlugin extends Plugin {
 						{
 							clipping_path: relativePath,
 							line_range: "all",
-							paragraph_summary: idxSummary || "源自剪藏的总结"
+							paragraph_summary: idxSummary || "Summary from clippings"
 						}
 					],
 					audit: {
@@ -465,9 +465,9 @@ export default class GenWikiPlugin extends Plugin {
 		if (processedAny) {
 			await this.saveDatabase(db);
 			await this.rebuildIndexMd(db);
-			new Notice("🎉 剪藏整理合并完成！索引已刷新。");
+			new Notice("🎉 Clippings merged and indexed successfully!");
 		} else {
-			new Notice("没有找到未处理的剪藏文件！");
+			new Notice("No unprocessed clippings found!");
 		}
 	}
 
@@ -510,7 +510,7 @@ export default class GenWikiPlugin extends Plugin {
 		}
 
 		if (!combinedContents.trim()) {
-			combinedContents = "（暂无相关Wiki知识内容，请先Ingest导入剪藏）";
+			combinedContents = "(No relevant Wiki knowledge content, please ingest clippings first)";
 		}
 
 		// Fill prompt
@@ -531,7 +531,7 @@ export default class GenWikiPlugin extends Plugin {
 		const activePages = Object.values(db.wiki_pages).filter(p => p.status !== "archived");
 
 		if (activePages.length === 0) {
-			new Notice("Wiki中没有任何页面，请先执行 Ingest 导入！");
+			new Notice("There are no pages in the Wiki. Please run Ingest first!");
 			return;
 		}
 
@@ -565,7 +565,7 @@ export default class GenWikiPlugin extends Plugin {
 				group_pages: groupPagesContent
 			});
 
-			new Notice(`正在审计第 ${Math.floor(i / batchSize) + 1} 组知识节点...`);
+			new Notice(`Auditing batch ${Math.floor(i / batchSize) + 1} of knowledge nodes...`);
 			const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
 			const cleanResponse = LLMClient.cleanJsonString(response);
 
@@ -599,9 +599,9 @@ export default class GenWikiPlugin extends Plugin {
 
 		// Write Lint Report
 		const reportPath = normalizePath(`${this.settings.wikiDir}/Lint_Report.md`);
-		let reportContent = `# GenWiki 知识库健康体检审计报告\n\n报告生成时间: ${new Date().toLocaleString()}\n\n`;
+		let reportContent = `# GenWiki Knowledge Base Health Audit Report\n\nReport generation time: ${new Date().toLocaleString()}\n\n`;
 
-		reportContent += `## 1. 信息冲突与矛盾警告 (Contradictions)\n`;
+		reportContent += `## 1. Information Conflicts and Contradictions\n`;
 		if (contradictions.length > 0) {
 			for (const cRaw of contradictions) {
 				if (typeof cRaw !== "object" || cRaw === null) continue;
@@ -609,29 +609,29 @@ export default class GenWikiPlugin extends Plugin {
 				const filesRaw = c["files"];
 				const filesArr = Array.isArray(filesRaw) ? filesRaw.map(f => String(f)) : [];
 				const desc = typeof c["description"] === "string" ? c["description"] as string : "";
-				reportContent += `* **涉及文件**: ${filesArr.map((f: string) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}\n  * **矛盾描述**: ${desc}\n`;
+				reportContent += `* **Files involved**: ${filesArr.map((f: string) => `[[${f.replace(this.settings.wikiDir + "/", "").replace(".md", "")}]]`).join(", ")}\n  * **Conflict description**: ${desc}\n`;
 			}
 		} else {
-			reportContent += `✅ 未检测到明显的逻辑冲突或数据矛盾。\n`;
+			reportContent += `✅ No obvious logical conflicts or data contradictions detected.\n`;
 		}
 
-		reportContent += `\n## 2. 孤立节点列表 (Orphan Pages)\n`;
+		reportContent += `\n## 2. Orphan Pages List\n`;
 		if (finalOrphans.length > 0) {
 			for (const path of finalOrphans) {
 				const title = path.replace(this.settings.wikiDir + "/", "").replace(".md", "");
-				reportContent += `* [[${title}]] - *无其他页面引用*\n`;
+				reportContent += `* [[${title}]] - *No inbound references*\n`;
 			}
 		} else {
-			reportContent += `✅ 所有 Wiki 页面均有入站链接关联。\n`;
+			reportContent += `✅ All Wiki pages have inbound links.\n`;
 		}
 
-		reportContent += `\n## 3. 关联构建与补全建议 (Suggestions)\n`;
+		reportContent += `\n## 3. Association Building and Completion Suggestions\n`;
 		if (suggestions.length > 0) {
 			for (const s of suggestions) {
 				reportContent += `* ${s}\n`;
 			}
 		} else {
-			reportContent += `✅ 目前连接图谱完整性良好。\n`;
+			reportContent += `✅ The connection graph is currently complete and healthy.\n`;
 		}
 
 		const reportFile = this.app.vault.getAbstractFileByPath(reportPath);
@@ -642,8 +642,8 @@ export default class GenWikiPlugin extends Plugin {
 		}
 
 		// Log and Open report
-		await this.logAction("lint", "Lint健康审计报告");
-		new Notice("🎉 知识健康体检完成！报告已生成。");
+		await this.logAction("lint", "Lint Health Audit Report");
+		new Notice("🎉 Knowledge health check complete! Report generated.");
 		const leaf = this.app.workspace.getLeaf(false);
 		const reportFileObj = this.app.vault.getAbstractFileByPath(reportPath);
 		if (leaf && reportFileObj instanceof TFile) await leaf.openFile(reportFileObj);
@@ -662,22 +662,22 @@ class QueryModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl("h2", { text: "🔍 智能 Wiki 问答检索" });
+		contentEl.createEl("h2", { text: "🔍 Smart Wiki QA Search" });
 
 		const inputEl = contentEl.createEl("input", {
 			type: "text",
-			placeholder: "请输入您对 Wiki 的疑问（支持模糊语义检索）..."
+			placeholder: "Please enter your question about the Wiki (supports fuzzy semantic search)..."
 		});
 			inputEl.addClass("genwiki-query-input");
 
-			const submitBtn = contentEl.createEl("button", { text: "提交问答" });
+			const submitBtn = contentEl.createEl("button", { text: "Submit Question" });
 			const resultContainer = contentEl.createDiv({ cls: "genwiki-query-result" });
 
 		submitBtn.addEventListener("click", async () => {
 			const query = inputEl.value.trim();
 			if (!query) return;
 
-			resultContainer.setText("正在分析检索，请稍候...");
+			resultContainer.setText("Analyzing and searching, please wait...");
 			submitBtn.disabled = true;
 
 			try {
@@ -687,7 +687,7 @@ class QueryModal extends Modal {
 					const preEl = resultContainer.createEl("pre", { cls: "genwiki-query-pre" });
 					preEl.setText(ans);
 			} catch (e) {
-				resultContainer.setText(`查询错误: ${(e as Error).message}`);
+				resultContainer.setText(`Query Error: ${(e as Error).message}`);
 				console.error(e);
 			} finally {
 				submitBtn.disabled = false;
@@ -722,12 +722,12 @@ class GenWikiSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName(`${providerName} Model`)
-			.setDesc("选择预设模型或自定义")
+			.setDesc("Select a preset model or customize")
 			.addDropdown(dropdown => {
 				for (const m of presetsModel) {
 					dropdown.addOption(m, m);
 				}
-				dropdown.addOption("customized", "自定义 (Custom)");
+				dropdown.addOption("customized", "Custom");
 				dropdown.setValue(dropdownValue);
 				dropdown.onChange(async (val) => {
 					if (val === "customized") {
@@ -741,10 +741,10 @@ class GenWikiSettingTab extends PluginSettingTab {
 
 		if (dropdownValue === "customized") {
 			new Setting(containerEl)
-				.setName(`自定义 ${providerName} Model ID`)
-				.setDesc("请输入您想要使用的自定义模型标识符")
+				.setName(`Custom ${providerName} Model ID`)
+				.setDesc("Enter your custom model identifier")
 				.addText(text => text
-					.setPlaceholder("例如: gpt-4-custom")
+					.setPlaceholder("e.g., gpt-4-custom")
 					.setValue(currentModel)
 					.onChange(async (val) => {
 						await onModelChange(val);
@@ -757,11 +757,11 @@ class GenWikiSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-			new Setting(containerEl).setName("大模型设置").setHeading();
+			new Setting(containerEl).setName("Model Settings").setHeading();
 
 		new Setting(containerEl)
-			.setName("默认大模型供应商 (Provider)")
-			.setDesc("选择使用的模型通道")
+			.setName("Default Model Provider")
+			.setDesc("Select the model provider to use")
 			.addDropdown(dropdown => dropdown
 				.addOption("gemini", "Google Gemini")
 				.addOption("anthropic", "Anthropic Claude")
@@ -970,11 +970,11 @@ class GenWikiSettingTab extends PluginSettingTab {
 			);
 		}
 
-		new Setting(containerEl).setName("目录路径配置 (Paths)").setHeading();
+		new Setting(containerEl).setName("Directory Paths").setHeading();
 
 		new Setting(containerEl)
-			.setName("Clippings 目录")
-			.setDesc("网页剪藏存放路径")
+			.setName("Clippings Directory")
+			.setDesc("Path for storing web clippings")
 			.addText(text => text
 				.setValue(this.plugin.settings.clippingsDir)
 				.onChange(async (value) => {
@@ -983,8 +983,8 @@ class GenWikiSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName("Wiki 目录")
-			.setDesc("结构化知识文件存放路径")
+			.setName("Wiki Directory")
+			.setDesc("Path for structured knowledge files")
 			.addText(text => text
 				.setValue(this.plugin.settings.wikiDir)
 				.onChange(async (value) => {

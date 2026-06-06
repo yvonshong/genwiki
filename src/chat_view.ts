@@ -21,7 +21,7 @@ export class GenWikiChatView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "GenWiki 智能问答";
+		return "GenWiki Chat";
 	}
 
 	getIcon(): string {
@@ -35,27 +35,27 @@ export class GenWikiChatView extends ItemView {
 
 		// Header row with Ingest button
 		const headerRow = container.createDiv({ cls: "genwiki-header-row" });
-		headerRow.createEl("h3", { text: "💬 GenWiki 智能问答" });
+		headerRow.createEl("h3", { text: "💬 GenWiki Chat" });
 		
 		const startIngestBtn = headerRow.createEl("button", {
 			cls: "genwiki-top-ingest-btn mod-cta",
-			text: "📥 开始处理剪藏"
+			text: "📥 Process Clippings"
 		});
 		startIngestBtn.addEventListener("click", () => {
 			void (async () => {
 				startIngestBtn.disabled = true;
-				startIngestBtn.setText("正在整理中...");
-				new Notice("正在开始扫描并整理剪藏资料...");
+				startIngestBtn.setText("Processing...");
+				new Notice("Scanning and organizing clippings...");
 				try {
 					// Access plugin directly to run ingest
 					await this.plugin.runIngest();
-					new Notice("🎉 剪藏整理完成！");
+					new Notice("🎉 Clippings processed successfully!");
 				} catch (e) {
-					new Notice(`Ingest 失败: ${(e as Error).message}`);
+					new Notice(`Ingest failed: ${(e as Error).message}`);
 					console.error(e);
 				} finally {
 					startIngestBtn.disabled = false;
-					startIngestBtn.setText("📥 开始处理剪藏");
+					startIngestBtn.setText("📥 Process Clippings");
 				}
 			})();
 		});
@@ -77,17 +77,17 @@ export class GenWikiChatView extends ItemView {
 		});
 
 		// Welcome Message
-		this.appendMessage("assistant", "你好！我是你的 GenWiki 助手。我可以基于你当前 Wiki 知识库内的概念和实体回答你的问题。问答产生的洞察支持一键保存为正式知识文件。");
+		this.appendMessage("assistant", "Hello! I am your GenWiki assistant. I can answer questions based on concepts and entities in your current Wiki knowledge base. Insights generated from our Q&A can be saved as formal knowledge pages with one click.");
 
 		// Input Section
 		const inputContainer = container.createDiv({ cls: "genwiki-chat-input-container" });
 		
 		this.inputArea = inputContainer.createEl("textarea", {
 			cls: "genwiki-chat-input",
-			placeholder: "向 Wiki 提问..."
+			placeholder: "Ask Wiki..."
 		});
 
-		this.sendButton = inputContainer.createEl("button", { text: "发送" });
+		this.sendButton = inputContainer.createEl("button", { text: "Send" });
 
 		// Event Listeners
 		this.sendButton.addEventListener("click", () => { void this.handleSend(); });
@@ -121,7 +121,7 @@ export class GenWikiChatView extends ItemView {
 		this.inputArea.value = "";
 
 		// Append placeholder for assistant
-		const assistantMsgDiv = this.appendMessage("assistant", "正在思考检索中...");
+		const assistantMsgDiv = this.appendMessage("assistant", "Thinking and searching...");
 		this.sendButton.disabled = true;
 		this.inputArea.disabled = true;
 
@@ -139,39 +139,39 @@ export class GenWikiChatView extends ItemView {
 			// Copy button
 			const copyBtn = actionsDiv.createEl("button", {
 				cls: "genwiki-copy-btn",
-				text: "📋 复制"
+				text: "📋 Copy"
 			});
 			copyBtn.addEventListener("click", () => {
 				navigator.clipboard.writeText(answer);
-				new Notice("已复制到剪贴板！");
+				new Notice("Copied to clipboard!");
 			});
 
-			const isNoRecord = answer.includes("暂无相关记录") || answer.includes("暂无相关") || answer.includes("暂无相关Wiki");
+			const isNoRecord = answer.includes("No relevant records") || answer.includes("No relevant") || answer.includes("No relevantWiki");
 			if (!isNoRecord) {
 				// Append "Save to Wiki" button for this response
 				const saveBtn = actionsDiv.createEl("button", {
 					cls: "genwiki-save-btn mod-cta",
-					text: "💾 保存为 Wiki 页面"
+					text: "💾 Save as Wiki Page"
 				});
 
 				saveBtn.addEventListener("click", () => {
 					void (async () => {
 						saveBtn.disabled = true;
-						saveBtn.setText("正在提炼归纳...");
+						saveBtn.setText("Summarizing...");
 						try {
 							await this.saveResponseToWiki(query, answer);
-							saveBtn.setText("✅ 已成功保存");
+							saveBtn.setText("✅ Saved successfully");
 						} catch (err) {
-							new Notice(`保存失败: ${(err as Error).message}`);
+							new Notice(`Save failed: ${(err as Error).message}`);
 							saveBtn.disabled = false;
-							saveBtn.setText("💾 保存为 Wiki 页面");
+							saveBtn.setText("💾 Save as Wiki Page");
 						}
 					})();
 				});
 			}
 
 		} catch (err) {
-			assistantMsgDiv.setText(`错误: ${(err as Error).message}`);
+			assistantMsgDiv.setText(`Error: ${(err as Error).message}`);
 			console.error(err);
 		} finally {
 			this.sendButton.disabled = false;
@@ -197,7 +197,7 @@ export class GenWikiChatView extends ItemView {
 		});
 
 		// 3. Ask LLM to refine into formal wiki page
-		new Notice("正在进行格式整理与去话语化...");
+		new Notice("Formatting and formalizing...");
 		const response = await this.plugin.llmClient.complete(userPrompt, skill.systemPrompt);
 		const cleanResponse = LLMClient.cleanJsonString(response);
 
@@ -206,12 +206,12 @@ export class GenWikiChatView extends ItemView {
 				return JSON.parse(cleanResponse) as unknown;
 			} catch (e) {
 				console.error("Failed to parse SavePage response JSON", cleanResponse, e);
-				throw new Error("模型生成的 JSON 格式不规范，请重新尝试。");
+				throw new Error("Invalid JSON format generated by the model. Please try again.");
 			}
 		})();
 
 		if (typeof parsed !== "object" || parsed === null) {
-			throw new Error("模型生成的 JSON 不是对象类型，无法保存。");
+			throw new Error("The JSON generated by the model is not an object and cannot be saved.");
 		}
 
 		const result = parsed as Record<string, unknown>;
@@ -220,7 +220,7 @@ export class GenWikiChatView extends ItemView {
 		const frontmatter = typeof result.frontmatter === "object" && result.frontmatter !== null ? result.frontmatter as Record<string, unknown> : undefined;
 
 		if (!title || !content) {
-			throw new Error("保存的数据中缺少必要的文件标题(title)或内容(content)。");
+			throw new Error("The saved data is missing the required title or content.");
 		}
 
 		// 4. Determine save path
@@ -229,7 +229,7 @@ export class GenWikiChatView extends ItemView {
 
 		const fileExists = this.plugin.app.vault.getAbstractFileByPath(destPath);
 		if (fileExists) {
-			throw new Error(`文件 ${destPath} 已存在，无法覆盖。请在侧边栏手动改名重试。`);
+			throw new Error(`File ${destPath}  already exists and cannot be overwritten. Please rename it manually in the sidebar and try again.`);
 		}
 
 		// 5. Build Frontmatter and Write Markdown File
@@ -302,7 +302,7 @@ export class GenWikiChatView extends ItemView {
 
 		// 8. Log and notice
 		await this.plugin.logAction("chat_save", title);
-		new Notice(`🎉 知识点 [[${title}]] 已成功录入 Wiki！`);
+		new Notice(`🎉 Knowledge node [[${title}]] has been successfully added to the Wiki!`);
 
 		// Open the newly created page
 		const newFile = this.plugin.app.vault.getAbstractFileByPath(destPath);
