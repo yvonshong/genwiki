@@ -510,8 +510,15 @@ export default class GenWikiPlugin extends Plugin {
 		const skillRaw = await this.app.vault.read(querySkillFile);
 		const skill = parseSkillMarkdown(skillRaw);
 
+		if (Object.keys(db.wiki_pages).length === 0) {
+			return "No relevant records in the knowledge base, please import new clippings.";
+		}
+
 		// Simple search algorithm: Find files from index.json matching keywords
-		const keywords = question.toLowerCase().split(/\s+/);
+		// Strip common punctuation to improve keyword matching
+		const cleanQuestion = question.replace(/[?？!！,，.。]/g, " ");
+		const keywords = cleanQuestion.toLowerCase().split(/\s+/).filter(k => k.trim().length > 0);
+		
 		const matchingPages: WikiPageMetadata[] = [];
 		for (const page of Object.values(db.wiki_pages)) {
 			const matches = keywords.some(kw => 
@@ -524,9 +531,16 @@ export default class GenWikiPlugin extends Plugin {
 			}
 		}
 
-		// If no matches, fall back to reading top 5 pages or index
+		// If no matches, fall back to reading top 5 pages
 		const pagesToRead = matchingPages.length > 0 ? matchingPages.slice(0, 5) : Object.values(db.wiki_pages).slice(0, 5);
 		let combinedContents = "";
+
+		// Always include the global index to give the LLM an overview
+		const indexFile = this.app.vault.getAbstractFileByPath(normalizePath(`${this.settings.wikiDir}/index.md`));
+		if (indexFile instanceof TFile) {
+			const indexContent = await this.app.vault.read(indexFile);
+			combinedContents += `\n=== GLOBAL KNOWLEDGE INDEX ===\n${indexContent}\n`;
+		}
 
 		for (const p of pagesToRead) {
 			const file = this.app.vault.getAbstractFileByPath(p.path);
