@@ -586,9 +586,6 @@ export default class GenWikiPlugin extends Plugin {
 		const pagesToRead = matchingPages.slice(0, 5);
 		let combinedContents = "";
 
-		const searchMethod = usedSemanticSearch ? "Semantic (Cosine Similarity)" : "Keyword/Full-text";
-		let debugInfo = `\n## Query at ${new Date().toISOString()}\n**Question**: ${question}\n**Search Method**: ${searchMethod}\n**Passed to LLM**: ${pagesToRead.map(p => p.title).join(", ")}\n`;
-
 		for (const p of pagesToRead) {
 			const file = this.app.vault.getAbstractFileByPath(p.path);
 			if (file instanceof TFile) {
@@ -599,22 +596,6 @@ export default class GenWikiPlugin extends Plugin {
 
 		if (!combinedContents.trim()) {
 			combinedContents = "(No relevant Wiki knowledge content, please ingest clippings first)";
-		}
-
-		debugInfo += `**Passed to LLM (Top 5 or matched)**:\n${pagesToRead.map(p => p.title).join(", ")}\n`;
-		
-		try {
-			const debugLogPath = normalizePath(`${this.settings.wikiDir}/debug_log.md`);
-			let logContent = "";
-			const logFile = this.app.vault.getAbstractFileByPath(debugLogPath);
-			if (logFile instanceof TFile) {
-				logContent = await this.app.vault.read(logFile);
-				await this.app.vault.modify(logFile, logContent + debugInfo);
-			} else {
-				await this.app.vault.create(debugLogPath, debugInfo);
-			}
-		} catch (e) {
-			console.error("Failed to write debug log", e);
 		}
 
 		// Fill prompt
