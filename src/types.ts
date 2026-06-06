@@ -79,6 +79,7 @@ export interface WikiPageMetadata {
 	links_to: string[];
 	links_from: string[];
 	claims: Claim[];
+	embedding?: number[];
 	audit: {
 		created_at: string;
 		last_compiled_cost_usd: number;

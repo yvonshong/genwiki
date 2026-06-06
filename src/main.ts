@@ -4,6 +4,20 @@ import { LLMClient } from "./llm";
 import { parseSkillMarkdown, fillTemplate, DEFAULT_INGEST_SKILL, DEFAULT_QUERY_SKILL, DEFAULT_LINT_SKILL, DEFAULT_SAVEPAGE_SKILL } from "./skills";
 import { GenWikiChatView, VIEW_TYPE_CHAT } from "./chat_view";
 
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+	let dotProduct = 0;
+	let normA = 0;
+	let normB = 0;
+	const len = Math.min(vecA.length, vecB.length);
+	for (let i = 0; i < len; i++) {
+		dotProduct += vecA[i] * vecB[i];
+		normA += vecA[i] * vecA[i];
+		normB += vecB[i] * vecB[i];
+	}
+	if (normA === 0 || normB === 0) return 0;
+	return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 export default class GenWikiPlugin extends Plugin {
 	settings!: GenWikiSettings;
 	llmClient!: LLMClient;
@@ -42,6 +56,14 @@ export default class GenWikiPlugin extends Plugin {
 					new Notice(`Ingest failed: ${(e as Error).message}`);
 					console.error(e);
 				}
+			}
+		});
+
+		this.addCommand({
+			id: "genwiki-rebuild-embeddings",
+			name: "Rebuild Embeddings Index",
+			callback: () => {
+				void this.rebuildEmbeddings();
 			}
 		});
 
@@ -100,7 +122,6 @@ export default class GenWikiPlugin extends Plugin {
 		}
 	}
 
-	// Helper to calculate SHA256 in a pure client environment, with mobile fallback
 	async calculateHash(text: string): Promise<string> {
 		if (typeof crypto !== "undefined" && crypto.subtle) {
 			const msgBuffer = new TextEncoder().encode(text);
@@ -108,12 +129,11 @@ export default class GenWikiPlugin extends Plugin {
 			const hashArray = Array.from(new Uint8Array(hashBuffer));
 			return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 		} else {
-			// Fallback for older iOS / Obsidian mobile where crypto.subtle is undefined
 			let hash = 0;
 			for (let i = 0; i < text.length; i++) {
 				const char = text.charCodeAt(i);
 				hash = ((hash << 5) - hash) + char;
-				hash = hash & hash; // Convert to 32bit integer
+				hash = hash & hash;
 			}
 			return Math.abs(hash).toString(16).padStart(8, "0");
 		}
@@ -154,14 +174,12 @@ export default class GenWikiPlugin extends Plugin {
 			}
 		}
 
-		// Init CLAUDE.md behavioral guide
 		const claudePath = normalizePath(`${this.settings.wikiDir}/_agents/CLAUDE.md`);
 		const file = this.app.vault.getAbstractFileByPath(claudePath);
 		if (!file) {
 			await this.app.vault.create(claudePath, `# CLAUDE.md\n\nThis protocol governs how GenWiki processes knowledge.`);
 		}
 
-		// Init log.md and index.md
 		const indexPath = normalizePath(`${this.settings.wikiDir}/index.md`);
 		if (!this.app.vault.getAbstractFileByPath(indexPath)) {
 			await this.app.vault.create(indexPath, `# Knowledge Index\n\nThis file is an auto-generated index.`);
@@ -189,13 +207,39 @@ export default class GenWikiPlugin extends Plugin {
 			}
 		}
 
-		// Return default structure if missing or corrupt
 		return {
 			version: "1.0.0",
 			last_indexed: new Date().toISOString(),
 			clippings: {},
 			wiki_pages: {}
 		};
+	}
+
+	async rebuildEmbeddings() {
+		const db = await this.loadDatabase();
+		const pages = Object.values(db.wiki_pages);
+		let count = 0;
+		new Notice(`Starting embedding generation for ${pages.length} pages...`);
+		for (const page of pages) {
+			if (!page.embedding || page.embedding.length === 0) {
+				const file = this.app.vault.getAbstractFileByPath(page.path);
+				if (file instanceof TFile) {
+					try {
+						const content = await this.app.vault.read(file);
+						page.embedding = await this.llmClient.embed(content);
+						count++;
+					} catch (e) {
+						console.error(`Failed to embed ${page.path}`, e);
+					}
+				}
+			}
+		}
+		if (count > 0) {
+			await this.saveDatabase(db);
+			new Notice(`Successfully generated embeddings for ${count} pages!`);
+		} else {
+			new Notice(`All pages already have embeddings. Nothing to do.`);
+		}
 	}
 
 	async saveDatabase(db: DatabaseIndex) {
@@ -219,18 +263,15 @@ export default class GenWikiPlugin extends Plugin {
 		}
 	}
 
-	// Extract outgoing double links from text
 	extractLinks(text: string): string[] {
 		const links: string[] = [];
 		const regex = /\[\[(.*?)\]\]/g;
 		let match;
 		while ((match = regex.exec(text)) !== null) {
 			let link = match[1];
-			// Handle aliases like [[PageName|Alias]]
 			if (link.includes("|")) {
 				link = link.split("|")[0];
 			}
-			// Handle headers like [[PageName#Header]]
 			if (link.includes("#")) {
 				link = link.split("#")[0];
 			}
@@ -242,7 +283,6 @@ export default class GenWikiPlugin extends Plugin {
 		return links;
 	}
 
-	// Regenerate the main index.md file based on database contents
 	async rebuildIndexMd(db: DatabaseIndex) {
 		const indexPath = normalizePath(`${this.settings.wikiDir}/index.md`);
 		const file = this.app.vault.getAbstractFileByPath(indexPath);
@@ -271,14 +311,12 @@ export default class GenWikiPlugin extends Plugin {
 		await this.app.vault.modify(file, content);
 	}
 
-	// P1: Ingest Process
 	async runIngest() {
 		const clippingsFolder = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.clippingsDir));
 		if (!(clippingsFolder instanceof TFolder)) {
 			throw new Error(`Clippings directory ${this.settings.clippingsDir} does not exist.`);
 		}
 
-		// Load db
 		const db = await this.loadDatabase();
 		const files = clippingsFolder.children;
 		const mdFiles = files.filter((f): f is TFile => f instanceof TFile && f.extension === "md");
@@ -304,15 +342,12 @@ export default class GenWikiPlugin extends Plugin {
 			processedCount++;
 			const relativePath = mdFile.path;
 
-			// Ingest file
 			const content = await this.app.vault.read(mdFile);
 			const hash = await this.calculateHash(content);
 
-			// Read index.md
 			const indexFile = this.app.vault.getAbstractFileByPath(normalizePath(`${this.settings.wikiDir}/index.md`));
 			const indexContent = indexFile instanceof TFile ? await this.app.vault.read(indexFile) : "";
 
-			// Read Ingest Skill
 			const skillFile = this.app.vault.getAbstractFileByPath(normalizePath(`${this.settings.wikiDir}/_skills/Ingest.md`));
 			if (!(skillFile instanceof TFile)) {
 				throw new Error("Ingest skill template missing.");
@@ -320,7 +355,6 @@ export default class GenWikiPlugin extends Plugin {
 			const skillRaw = await this.app.vault.read(skillFile);
 			const skill = parseSkillMarkdown(skillRaw);
 
-			// Fill variables
 			const userPrompt = fillTemplate(skill.userPromptTemplate, {
 				index_content: indexContent,
 				clipping_content: content
@@ -376,10 +410,7 @@ export default class GenWikiPlugin extends Plugin {
 			}
 
 			const result = resultParsed as Record<string, unknown>;
-
 			const destinations: string[] = [];
-
-			// Apply operations (create or modify files)
 			const operations = Array.isArray(result.operations) ? result.operations as unknown[] : [];
 			for (const opRaw of operations) {
 				if (typeof opRaw !== "object" || opRaw === null) continue;
@@ -393,8 +424,11 @@ export default class GenWikiPlugin extends Plugin {
 				destinations.push(destPath);
 				const opFile = this.app.vault.getAbstractFileByPath(destPath);
 
+				const linksTo = this.extractLinks(opContent || "");
+				const generatedLinks = linksTo.map(l => `[[${l.split('/').pop()?.replace('.md', '')}]]`).join(' ');
+				const finalContent = `${opContent || ""}\n\n${generatedLinks}`;
+
 				if (action === "create" || !opFile) {
-					// Ensure directory structure
 					const parts = destPath.split("/");
 					if (parts.length > 1) {
 						const parentDir = parts.slice(0, parts.length - 1).join("/");
@@ -402,17 +436,12 @@ export default class GenWikiPlugin extends Plugin {
 							await this.app.vault.createFolder(normalizePath(parentDir));
 						}
 					}
-					await this.app.vault.create(destPath, opContent || "");
+					await this.app.vault.create(destPath, finalContent);
 				} else if (opFile instanceof TFile) {
-					await this.app.vault.modify(opFile, opContent || "");
+					await this.app.vault.modify(opFile, finalContent);
 				}
 
-				// Update database metadata for this page
-				const fileContent = opContent || "";
-				const fileHash = await this.calculateHash(fileContent);
-				const linksTo = this.extractLinks(fileContent);
-
-				// Index updates
+				const fileHash = await this.calculateHash(finalContent);
 				const indexUpdates = Array.isArray(result.index_updates) ? result.index_updates as unknown[] : [];
 				const idxUpdateRaw = indexUpdates.find(iu => typeof iu === "object" && iu !== null && (iu as Record<string, unknown>).path === opPath);
 				const idxUpdate = (typeof idxUpdateRaw === "object" && idxUpdateRaw !== null) ? idxUpdateRaw as Record<string, unknown> : {} as Record<string, unknown>;
@@ -432,7 +461,7 @@ export default class GenWikiPlugin extends Plugin {
 				const idxType = idxTypeRaw === "concept" || idxTypeRaw === "entity" || idxTypeRaw === "general" ? idxTypeRaw : "general";
 				const idxSummary = typeof idxUpdate["summary"] === "string" ? idxUpdate["summary"] : existingPage?.summary || "Auto-generated information entry.";
 
-				db.wiki_pages[destPath] = {
+				const pageMeta: WikiPageMetadata = {
 					path: destPath,
 					title: opTitle || (opFile instanceof TFile ? opFile.name.replace(".md", "") : "Untitled"),
 					aliases: idxAliases,
@@ -443,22 +472,22 @@ export default class GenWikiPlugin extends Plugin {
 					sha256: fileHash,
 					links_to: linksTo,
 					links_from: existingPage?.links_from || [],
-					claims: [
-						{
-							clipping_path: relativePath,
-							line_range: "all",
-							paragraph_summary: idxSummary || "Summary from clippings"
-						}
-					],
+					claims: [{ clipping_path: relativePath, line_range: "all", paragraph_summary: idxSummary || "Summary from clippings" }],
 					audit: {
 						created_at: existingPage?.audit.created_at || new Date().toISOString(),
 						last_compiled_cost_usd: 0.01,
 						history: auditHistory
 					}
 				};
+
+				try {
+					pageMeta.embedding = await this.llmClient.embed(finalContent);
+				} catch (e) {
+					console.error("Failed to generate embedding for page:", destPath, e);
+				}
+				db.wiki_pages[destPath] = pageMeta;
 			}
 
-			// Update link_from backreferences
 			for (const pagePath of destinations) {
 				const page = db.wiki_pages[pagePath];
 				if (page) {
@@ -471,7 +500,6 @@ export default class GenWikiPlugin extends Plugin {
 				}
 			}
 
-			// Save clipping status
 			db.clippings[relativePath] = {
 				path: relativePath,
 				sha256: hash,
@@ -480,10 +508,7 @@ export default class GenWikiPlugin extends Plugin {
 				destinations: destinations
 			};
 
-			// Log Ingest
 			await this.logAction("ingest", mdFile.name);
-
-			// Move file to Archived
 			const archivedPath = normalizePath(`${this.settings.clippingsDir}/Archived/${mdFile.name}`);
 			await this.app.vault.rename(mdFile, archivedPath);
 			processedAny = true;
@@ -498,11 +523,9 @@ export default class GenWikiPlugin extends Plugin {
 		}
 	}
 
-	// P1: Query core execution
 	async executeQuery(question: string): Promise<string> {
 		const db = await this.loadDatabase();
 
-		// Step 1: Read Query Skill
 		const querySkillFile = this.app.vault.getAbstractFileByPath(normalizePath(`${this.settings.wikiDir}/_skills/Query.md`));
 		if (!(querySkillFile instanceof TFile)) {
 			throw new Error("Query skill template missing.");
@@ -513,8 +536,6 @@ export default class GenWikiPlugin extends Plugin {
 		const extractKeywords = (str: string): string[] => {
 			let cleaned = str.toLowerCase();
 			const stopWords = ["what", "is", "the", "a", "an", "how", "why", "是", "什么", "怎么", "怎么样", "为什么", "的", "了", "呢", "请问", "关于"];
-			
-			// Replace stop words with space to break Chinese strings
 			for (const word of stopWords) {
 				if (/^[a-z]+$/.test(word)) {
 					cleaned = cleaned.replace(new RegExp(`\\b${word}\\b`, 'g'), ' ');
@@ -522,73 +543,51 @@ export default class GenWikiPlugin extends Plugin {
 					cleaned = cleaned.replace(new RegExp(word, 'g'), ' ');
 				}
 			}
-			
 			const tokens = cleaned.split(/[\s,，.。?？!！"“”'‘’]+/);
 			return tokens.filter(t => t.trim().length > 0);
 		};
 
 		const keywords = extractKeywords(question);
-		
 		let matchingPages: WikiPageMetadata[] = [];
-		for (const page of Object.values(db.wiki_pages)) {
-			const pageTitle = page.title.toLowerCase();
-			const matches = keywords.some(kw => {
-				if (pageTitle.includes(kw)) return true;
-				// Bidirectional match: if the query string contains the title, it's highly relevant (e.g., query "什么是知识图谱" contains title "知识图谱")
-				if (pageTitle.length > 1 && kw.includes(pageTitle)) return true;
-				
-				if (page.summary.toLowerCase().includes(kw)) return true;
-				
-				if (page.aliases.some(alias => {
-					const a = alias.toLowerCase();
-					return a.includes(kw) || (a.length > 1 && kw.includes(a));
-				})) return true;
-				
-				return false;
-			});
-			if (matches) {
-				matchingPages.push(page);
-			}
-		}
+		let usedSemanticSearch = false;
 
-		// Full-text search fallback if metadata search fails
-		if (matchingPages.length === 0) {
-			const scoredPages: { page: any, score: number }[] = [];
+		try {
+			const questionEmbedding = await this.llmClient.embed(question);
+			const scoredPages: { page: WikiPageMetadata, score: number }[] = [];
 			for (const page of Object.values(db.wiki_pages)) {
-				const file = this.app.vault.getAbstractFileByPath(page.path);
-				if (file instanceof TFile) {
-					const content = await this.app.vault.read(file);
-					const contentLower = content.toLowerCase();
-					
-					let score = 0;
-					for (const kw of keywords) {
-						if (kw.length >= 2 && contentLower.includes(kw)) {
-							// Exact word boundary match gets extra points in English, but for Chinese just simple includes
-							score += 1;
-						}
-					}
-					
-					if (score > 0) {
-						scoredPages.push({ page, score });
-					}
+				if (page.embedding && page.embedding.length > 0) {
+					const score = cosineSimilarity(questionEmbedding, page.embedding);
+					scoredPages.push({ page, score });
 				}
 			}
-			// Sort pages by score descending (most keywords matched first)
-			scoredPages.sort((a, b) => b.score - a.score);
-			matchingPages = scoredPages.map(p => p.page);
+			if (scoredPages.length > 0) {
+				scoredPages.sort((a, b) => b.score - a.score);
+				matchingPages = scoredPages.filter(p => p.score > 0.7).map(p => p.page);
+				if (matchingPages.length === 0) matchingPages = scoredPages.slice(0, 3).map(p => p.page);
+				usedSemanticSearch = true;
+			}
+		} catch (e) {
+			console.log("Embedding search failed, falling back to keyword search:", e);
 		}
 
-		// If no matches even after full-text search, return early to save LLM tokens
-		if (matchingPages.length === 0) {
-			return "No relevant records in the knowledge base, please import new clippings.";
+		if (!usedSemanticSearch || matchingPages.length === 0) {
+			for (const page of Object.values(db.wiki_pages)) {
+				const pageTitle = page.title.toLowerCase();
+				const matches = keywords.some(kw => {
+					if (pageTitle.includes(kw) || page.summary.toLowerCase().includes(kw) || page.aliases.some(a => a.toLowerCase().includes(kw))) return true;
+					return false;
+				});
+				if (matches) matchingPages.push(page);
+			}
 		}
 
-		// Take top 5 matched pages
+		if (matchingPages.length === 0) return "No relevant records in the knowledge base.";
+
 		const pagesToRead = matchingPages.slice(0, 5);
 		let combinedContents = "";
 
-		// DEBUG LOGGING
-		let debugInfo = `\n## Query at ${new Date().toISOString()}\n**Question**: ${question}\n**Keywords**: ${JSON.stringify(keywords)}\n**Matched Pages**: ${matchingPages.map(p => p.title).join(", ")}\n`;
+		const searchMethod = usedSemanticSearch ? "Semantic (Cosine Similarity)" : "Keyword/Full-text";
+		let debugInfo = `\n## Query at ${new Date().toISOString()}\n**Question**: ${question}\n**Search Method**: ${searchMethod}\n**Passed to LLM**: ${pagesToRead.map(p => p.title).join(", ")}\n`;
 
 		for (const p of pagesToRead) {
 			const file = this.app.vault.getAbstractFileByPath(p.path);

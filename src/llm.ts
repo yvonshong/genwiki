@@ -44,6 +44,17 @@ export class LLMClient {
 		}
 	}
 
+	async embed(text: string): Promise<number[]> {
+		const provider = this.settings.provider;
+		if (provider === "gemini") {
+			return this.embedGemini(text);
+		} else if (provider === "openai") {
+			return this.embedOpenAI(text);
+		} else {
+			throw new Error(`Embedding is currently only supported for 'gemini' and 'openai' providers. Your provider is ${provider}. Please switch to Gemini/OpenAI or continue using keyword search.`);
+		}
+	}
+
 	private cleanUrl(baseUrl: string, path: string): string {
 		const cleanBase = baseUrl.trim().replace(/\/+$/, "");
 		const cleanPath = path.trim().replace(/^\/+/, "");
@@ -154,6 +165,76 @@ export class LLMClient {
 			prompt,
 			systemPrompt
 		);
+	}
+
+	private async embedGemini(text: string): Promise<number[]> {
+		const key = this.settings.geminiApiKey;
+		if (!key) throw new Error("Gemini API key is not configured.");
+
+		const baseUrl = this.settings.geminiBaseUrl || "https://generativelanguage.googleapis.com";
+		const url = `${baseUrl.replace(/\/+$/, "")}/v1beta/models/text-embedding-004:embedContent?key=${key}`;
+		
+		const body: Record<string, unknown> = {
+			model: "models/text-embedding-004",
+			content: { parts: [{ text: text }] }
+		};
+
+		const params: RequestUrlParam = {
+			url: url,
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json"
+			},
+			body: JSON.stringify(body)
+		};
+
+		const response = await requestUrl(params);
+		if (response.status !== 200) {
+			throw new Error(`Gemini Embedding Error (${response.status}): ${response.text}`);
+		}
+
+		// Explicit cast to any for nested property access safely
+		const json = response.json as any;
+		const values = json?.embedding?.values;
+		if (!Array.isArray(values)) {
+			throw new Error("Invalid embedding response from Gemini API.");
+		}
+		return values as number[];
+	}
+
+	private async embedOpenAI(text: string): Promise<number[]> {
+		const key = this.settings.openaiApiKey;
+		if (!key) throw new Error("OpenAI API key is not configured.");
+
+		const baseUrl = this.settings.openaiBaseUrl || "https://api.openai.com/v1";
+		const url = this.cleanUrl(baseUrl, "embeddings");
+		
+		const body: Record<string, unknown> = {
+			model: "text-embedding-3-small",
+			input: text
+		};
+
+		const params: RequestUrlParam = {
+			url: url,
+			method: "POST",
+			headers: {
+				"Authorization": `Bearer ${key}`,
+				"Content-Type": "application/json"
+			},
+			body: JSON.stringify(body)
+		};
+
+		const response = await requestUrl(params);
+		if (response.status !== 200) {
+			throw new Error(`OpenAI Embedding Error (${response.status}): ${response.text}`);
+		}
+
+		const json = response.json as any;
+		const values = json?.data?.[0]?.embedding;
+		if (!Array.isArray(values)) {
+			throw new Error("Invalid embedding response from OpenAI API.");
+		}
+		return values as number[];
 	}
 
 	private async completeDeepSeek(prompt: string, systemPrompt?: string): Promise<string> {
