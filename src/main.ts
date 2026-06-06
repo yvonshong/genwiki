@@ -327,7 +327,22 @@ export default class GenWikiPlugin extends Plugin {
 			});
 
 			new Notice(`[${processedCount}/${totalPending}] Analyzing with AI: ${mdFile.name}...`);
-			const response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
+			let response: string;
+			try {
+				response = await this.llmClient.complete(userPrompt, skill.systemPrompt);
+			} catch (e) {
+				console.error(`Failed to analyze ${mdFile.name}`, e);
+				new Notice(`[${processedCount}/${totalPending}] Error analyzing ${mdFile.name}: ${(e as Error).message}`);
+				db.clippings[relativePath] = {
+					path: relativePath,
+					sha256: hash,
+					ingest_date: new Date().toISOString(),
+					status: "failed",
+					destinations: []
+				};
+				await this.saveDatabase(db);
+				continue;
+			}
 			const cleanResponse = LLMClient.cleanJsonString(response);
 
 			let resultParsed: unknown;
