@@ -510,12 +510,26 @@ export default class GenWikiPlugin extends Plugin {
 		const skillRaw = await this.app.vault.read(querySkillFile);
 		const skill = parseSkillMarkdown(skillRaw);
 
-		// Simple search algorithm: Find files from index.json matching keywords
-		// Strip common punctuation to improve keyword matching
-		const cleanQuestion = question.replace(/[?？!！,，.。]/g, " ");
-		const keywords = cleanQuestion.toLowerCase().split(/\s+/).filter(k => k.trim().length > 0);
+		const extractKeywords = (str: string): string[] => {
+			let cleaned = str.toLowerCase();
+			const stopWords = ["what", "is", "the", "a", "an", "how", "why", "是", "什么", "怎么", "怎么样", "为什么", "的", "了", "呢", "请问", "关于"];
+			
+			// Replace stop words with space to break Chinese strings
+			for (const word of stopWords) {
+				if (/^[a-z]+$/.test(word)) {
+					cleaned = cleaned.replace(new RegExp(`\\b${word}\\b`, 'g'), ' ');
+				} else {
+					cleaned = cleaned.replace(new RegExp(word, 'g'), ' ');
+				}
+			}
+			
+			const tokens = cleaned.split(/[\s,，.。?？!！"“”'‘’]+/);
+			return tokens.filter(t => t.trim().length > 0);
+		};
+
+		const keywords = extractKeywords(question);
 		
-		const matchingPages: WikiPageMetadata[] = [];
+		let matchingPages: WikiPageMetadata[] = [];
 		for (const page of Object.values(db.wiki_pages)) {
 			const pageTitle = page.title.toLowerCase();
 			const matches = keywords.some(kw => {
@@ -539,18 +553,29 @@ export default class GenWikiPlugin extends Plugin {
 
 		// Full-text search fallback if metadata search fails
 		if (matchingPages.length === 0) {
+			const scoredPages: { page: any, score: number }[] = [];
 			for (const page of Object.values(db.wiki_pages)) {
 				const file = this.app.vault.getAbstractFileByPath(page.path);
 				if (file instanceof TFile) {
 					const content = await this.app.vault.read(file);
 					const contentLower = content.toLowerCase();
-					// Need at least one keyword to match in the body (length >= 2 to avoid single char noise)
-					const matches = keywords.some(kw => contentLower.includes(kw) && kw.length >= 2);
-					if (matches) {
-						matchingPages.push(page);
+					
+					let score = 0;
+					for (const kw of keywords) {
+						if (kw.length >= 2 && contentLower.includes(kw)) {
+							// Exact word boundary match gets extra points in English, but for Chinese just simple includes
+							score += 1;
+						}
+					}
+					
+					if (score > 0) {
+						scoredPages.push({ page, score });
 					}
 				}
 			}
+			// Sort pages by score descending (most keywords matched first)
+			scoredPages.sort((a, b) => b.score - a.score);
+			matchingPages = scoredPages.map(p => p.page);
 		}
 
 		// If no matches even after full-text search, return early to save LLM tokens
