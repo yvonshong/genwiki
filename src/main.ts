@@ -100,12 +100,23 @@ export default class GenWikiPlugin extends Plugin {
 		}
 	}
 
-	// Helper to calculate SHA256 in a pure client environment
+	// Helper to calculate SHA256 in a pure client environment, with mobile fallback
 	async calculateHash(text: string): Promise<string> {
-		const msgBuffer = new TextEncoder().encode(text);
-		const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
-		const hashArray = Array.from(new Uint8Array(hashBuffer));
-		return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+		if (typeof crypto !== "undefined" && crypto.subtle) {
+			const msgBuffer = new TextEncoder().encode(text);
+			const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+			const hashArray = Array.from(new Uint8Array(hashBuffer));
+			return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+		} else {
+			// Fallback for older iOS / Obsidian mobile where crypto.subtle is undefined
+			let hash = 0;
+			for (let i = 0; i < text.length; i++) {
+				const char = text.charCodeAt(i);
+				hash = ((hash << 5) - hash) + char;
+				hash = hash & hash; // Convert to 32bit integer
+			}
+			return Math.abs(hash).toString(16).padStart(8, "0");
+		}
 	}
 
 	async initFolders() {
